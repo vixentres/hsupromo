@@ -1,7 +1,18 @@
-import React, { useState } from 'react';
-import { Copy, Folder, FolderOpen, CheckCircle, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Copy, Folder, FolderOpen, CheckCircle, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOut } from 'lucide-react';
+import { useAuth } from '../lib/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function PromoterDashboard() {
+  const { user, logout, loading } = useAuth();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/promotor/login');
+    }
+  }, [user, loading, navigate]);
+
   const [taskStatus, setTaskStatus] = useState<'rojo' | 'amarillo' | 'verde' | 'morado'>('rojo');
   const [linkMode, setLinkMode] = useState<'perfil' | 'historias'>('historias');
 
@@ -17,16 +28,28 @@ export default function PromoterDashboard() {
       : `https://www.instagram.com/${ig}/`;
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/promotor/login');
+  };
+
+  if (loading || !user) return <div className="p-8 text-center">Cargando perfil...</div>;
+
   return (
     <div className="p-8 max-w-4xl mx-auto pb-24">
       <header className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-black">Panel de Misiones</h1>
-          <p className="text-gray-400 text-sm">Tu estado actual y tareas de auditoría.</p>
+          <h1 className="text-3xl font-black">Hola, {user.nombre}</h1>
+          <p className="text-gray-400 text-sm">Tu estado actual y tareas de auditoría. ({user.rol})</p>
         </div>
-        <button className="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors border border-white/5">
-          <Copy size={16} /> Copiar mi Link Personal
-        </button>
+        <div className="flex gap-2">
+          <button className="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors border border-white/5">
+            <Copy size={16} /> Copiar mi Link
+          </button>
+          <button onClick={handleLogout} className="bg-red-900/50 hover:bg-red-800/50 text-red-400 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors border border-red-500/20">
+            <LogOut size={16} /> Salir
+          </button>
+        </div>
       </header>
 
       {/* SECCIÓN 1: MI TAREA */}

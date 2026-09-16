@@ -1,4 +1,4 @@
-export const GAS_URL = "LA_URL_DE_TU_SCRIPT_AQUI"; // El usuario pondrá su URL aquí
+export const GAS_URL = "https://script.google.com/macros/s/AKfycbzEQtlE3AsXLYfuK9DCUrhSmE8XqlhnPAxohzzB5vwhx1ufmaWboLnmjDW96hOH2eva/exec"; // El usuario pondrá su URL aquí
 
 export async function fetchGAS(action: string, payload: any = {}) {
   try {

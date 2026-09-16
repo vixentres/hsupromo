@@ -3,19 +3,22 @@ import PromoterLogin from './pages/PromoterLogin';
 import PromoterDashboard from './pages/PromoterDashboard';
 import AdminPanel from './pages/AdminPanel';
 import LandingPage from './pages/LandingPage';
+import { AuthProvider } from './lib/AuthContext';
 
 function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-neutral-900 text-white font-sans selection:bg-red-500/30">
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/promotor/login" element={<PromoterLogin />} />
-          <Route path="/promotor/dashboard" element={<PromoterDashboard />} />
-          <Route path="/admin" element={<AdminPanel />} />
-        </Routes>
-      </div>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <div className="min-h-screen bg-neutral-900 text-white font-sans selection:bg-red-500/30">
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/promotor/login" element={<PromoterLogin />} />
+            <Route path="/promotor/dashboard" element={<PromoterDashboard />} />
+            <Route path="/admin" element={<AdminPanel />} />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 

@@ -1,8 +1,29 @@
 import React, { useState } from 'react';
 import { Users, BarChart3, Settings, Plus, ExternalLink } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<'users' | 'tasks' | 'stats'>('users');
+
+  const [newUser, setNewUser] = useState({
+    nombre: '', rut: '', correo: '', clave: '', instagram: '', chat_link: ''
+  });
+  const [loadingUser, setLoadingUser] = useState(false);
+
+  const handleCreateUser = async () => {
+    setLoadingUser(true);
+    const { data, error } = await supabase
+      .from('promotores')
+      .insert([newUser]);
+      
+    setLoadingUser(false);
+    if (!error) {
+      alert('Usuario creado con éxito en Supabase');
+      setNewUser({ nombre: '', rut: '', correo: '', clave: '', instagram: '', chat_link: '' });
+    } else {
+      alert('Error: ' + error.message);
+    }
+  };
 
   return (
     <div className="p-8 max-w-6xl mx-auto pb-24">
@@ -19,38 +40,41 @@ export default function AdminPanel() {
         <div className="bg-neutral-800 rounded-2xl p-6 border border-white/5">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold">Crear Promotor</h2>
-            <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm">
-              <Plus size={16} /> Añadir a Google Sheets
+            <button 
+              onClick={handleCreateUser}
+              disabled={loadingUser}
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm">
+              <Plus size={16} /> {loadingUser ? 'Guardando...' : 'Añadir a Google Sheets'}
             </button>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs uppercase font-bold text-gray-400 block mb-1">Nombre Completo</label>
-              <input type="text" className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
+              <input type="text" value={newUser.nombre} onChange={e => setNewUser({...newUser, nombre: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
             </div>
             <div>
               <label className="text-xs uppercase font-bold text-gray-400 block mb-1">RUT</label>
-              <input type="text" className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
+              <input type="text" value={newUser.rut} onChange={e => setNewUser({...newUser, rut: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
             </div>
             <div>
               <label className="text-xs uppercase font-bold text-gray-400 block mb-1">Correo Electrónico</label>
-              <input type="email" className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
+              <input type="email" value={newUser.correo} onChange={e => setNewUser({...newUser, correo: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
             </div>
             <div>
               <label className="text-xs uppercase font-bold text-gray-400 block mb-1">Clave de Acceso</label>
-              <input type="text" className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
+              <input type="text" value={newUser.clave} onChange={e => setNewUser({...newUser, clave: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
             </div>
             <div>
               <label className="text-xs uppercase font-bold text-gray-400 block mb-1 flex justify-between">
                 <span>Usuario Instagram</span>
                 <span className="text-red-400 font-normal normal-case text-[10px]">*Notificar si lo cambian</span>
               </label>
-              <input type="text" className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" placeholder="Sin el @" />
+              <input type="text" value={newUser.instagram} onChange={e => setNewUser({...newUser, instagram: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" placeholder="Sin el @" />
             </div>
             <div>
               <label className="text-xs uppercase font-bold text-gray-400 block mb-1">Enlace de Chat Directo (IG)</label>
-              <input type="text" className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" placeholder="https://www.instagram.com/direct/t/..." />
+              <input type="text" value={newUser.chat_link} onChange={e => setNewUser({...newUser, chat_link: e.target.value})} className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" placeholder="https://www.instagram.com/direct/t/..." />
             </div>
           </div>
         </div>
