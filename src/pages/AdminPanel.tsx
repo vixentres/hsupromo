@@ -109,6 +109,7 @@ export default function AdminPanel() {
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const [metrics, setMetrics] = useState<any[]>([]);
+  const [statsFilter, setStatsFilter] = useState<'visita' | 'click_tm' | 'click_gratis'>('visita');
 
   useEffect(() => { loadAll(); }, []);
 
@@ -132,8 +133,8 @@ export default function AdminPanel() {
   };
 
   const loadHeatMap = async () => {
-    // 1. Obtener todos los promotores
-    const { data: proms } = await supabase.from('promotores').select('id, nombre, instagram').order('created_at');
+    // 1. Obtener solo los promotores (excluir admins del mapa)
+    const { data: proms } = await supabase.from('promotores').select('id, nombre, instagram').eq('rol', 'promotor').order('created_at');
     if (!proms) return;
     
     // 2. Obtener revisiones
@@ -765,7 +766,6 @@ export default function AdminPanel() {
         {activeTab === 'stats' && (() => {
           // Tipos de acción disponibles
           type TipoFiltro = 'visita' | 'click_tm' | 'click_gratis';
-          const [tipoFiltro, setTipoFiltro] = React.useState<TipoFiltro>('visita');
 
           // Obtener fechas únicas de métricas
           const metricDates = [...new Set(metrics.map((m: any) =>
@@ -783,7 +783,7 @@ export default function AdminPanel() {
             if (m.tipo_accion in grouped[pid].total) grouped[pid].total[m.tipo_accion]++;
           });
 
-          const rows = Object.values(grouped).sort((a: any, b: any) => b.total[tipoFiltro] - a.total[tipoFiltro]);
+          const rows = Object.values(grouped).sort((a: any, b: any) => b.total[statsFilter] - a.total[statsFilter]);
 
           const tipoLabel: Record<TipoFiltro, string> = {
             visita: 'Visitas',
@@ -805,8 +805,8 @@ export default function AdminPanel() {
                   {/* Filtro tipo */}
                   <div className="flex gap-1 bg-neutral-950 border border-white/10 p-1 rounded-xl">
                     {(['visita', 'click_tm', 'click_gratis'] as TipoFiltro[]).map(t => (
-                      <button key={t} onClick={() => setTipoFiltro(t)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${tipoFiltro === t ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
+                      <button key={t} onClick={() => setStatsFilter(t)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statsFilter === t ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
                         {tipoLabel[t]}
                       </button>
                     ))}
@@ -836,15 +836,15 @@ export default function AdminPanel() {
                             </a>
                           </td>
                           {metricDates.map(d => {
-                            const val = r.byDate[d]?.[tipoFiltro] || 0;
+                            const val = r.byDate[d]?.[statsFilter] || 0;
                             return (
-                              <td key={d} className={`px-4 py-3 text-center font-mono ${val > 0 ? tipoColor[tipoFiltro] : 'text-gray-700'}`}>
+                              <td key={d} className={`px-4 py-3 text-center font-mono ${val > 0 ? tipoColor[statsFilter] : 'text-gray-700'}`}>
                                 {val > 0 ? val : '—'}
                               </td>
                             );
                           })}
-                          <td className={`px-4 py-3 text-right font-mono font-bold ${tipoColor[tipoFiltro]}`}>
-                            {r.total[tipoFiltro]}
+                          <td className={`px-4 py-3 text-right font-mono font-bold ${tipoColor[statsFilter]}`}>
+                            {r.total[statsFilter]}
                           </td>
                         </tr>
                       ))}
@@ -855,11 +855,11 @@ export default function AdminPanel() {
                         <tr className="border-t border-white/15 bg-neutral-950/50 text-xs font-bold text-gray-400">
                           <td className="px-5 py-3 sticky left-0 bg-neutral-950/50">TOTAL</td>
                           {metricDates.map(d => {
-                            const total = rows.reduce((sum: number, r: any) => sum + (r.byDate[d]?.[tipoFiltro] || 0), 0);
-                            return <td key={d} className={`px-4 py-3 text-center font-mono ${tipoColor[tipoFiltro]}`}>{total || '—'}</td>;
+                            const total = rows.reduce((sum: number, r: any) => sum + (r.byDate[d]?.[statsFilter] || 0), 0);
+                            return <td key={d} className={`px-4 py-3 text-center font-mono ${tipoColor[statsFilter]}`}>{total || '—'}</td>;
                           })}
-                          <td className={`px-4 py-3 text-right font-mono ${tipoColor[tipoFiltro]}`}>
-                            {rows.reduce((sum: number, r: any) => sum + r.total[tipoFiltro], 0)}
+                          <td className={`px-4 py-3 text-right font-mono ${tipoColor[statsFilter]}`}>
+                            {rows.reduce((sum: number, r: any) => sum + r.total[statsFilter], 0)}
                           </td>
                         </tr>
                       </tfoot>

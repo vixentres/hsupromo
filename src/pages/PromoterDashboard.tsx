@@ -238,16 +238,22 @@ export default function PromoterDashboard() {
 
               {/* Botón material RRSS */}
               {materialUrl && (
-                <button
-                  onClick={handleVerMaterial}
-                  className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold py-3.5 rounded-xl text-sm transition-all group"
+                <a
+                  href={materialUrl || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    if (!materialUrl) e.preventDefault();
+                    copyLink();
+                  }}
+                  className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer"
                 >
                   <Folder size={16} className="group-hover:scale-110 transition-transform" />
                   Descargar Material RRSS
                   <div className="absolute right-4 flex items-center gap-1.5 text-[10px] bg-neutral-950/40 px-2 py-1 rounded border border-white/10 text-gray-400">
                     <LinkIcon size={10} /> Copia tu link auto.
                   </div>
-                </button>
+                </a>
               )}
             </div>
 

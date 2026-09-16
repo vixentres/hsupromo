@@ -103,28 +103,38 @@ export default function LandingPage() {
 
           {/* CTAs */}
           <div className="p-6 space-y-3">
-            <button
-              onClick={() => handleCTA('click_tm', config.ticketmaster_url)}
-              disabled={!config.ticketmaster_url}
-              className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 text-sm"
+            <a
+              href={config.ticketmaster_url ? ensureAbsoluteUrl(config.ticketmaster_url) : '#'}
+              target={config.ticketmaster_url ? "_blank" : "_self"}
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                if (!config.ticketmaster_url) { e.preventDefault(); return; }
+                registerMetric('click_tm');
+              }}
+              className={`w-full ${config.ticketmaster_url ? 'bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-lg shadow-blue-900/20' : 'bg-blue-600/50 cursor-not-allowed opacity-40'} text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm`}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
                 <path d="M20 12V6H4v6a2 2 0 0 0 0 4v6h16v-6a2 2 0 0 0 0-4z"/>
               </svg>
               Comprar en Ticketmaster
-            </button>
+            </a>
 
-            <button
-              onClick={() => handleCTA('click_gratis', config.entradas_gratis_url)}
-              disabled={!config.entradas_gratis_url}
-              className="w-full bg-white hover:bg-gray-100 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-neutral-900 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
+            <a
+              href={config.entradas_gratis_url ? ensureAbsoluteUrl(config.entradas_gratis_url) : '#'}
+              target={config.entradas_gratis_url ? "_blank" : "_self"}
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                if (!config.entradas_gratis_url) { e.preventDefault(); return; }
+                registerMetric('click_gratis');
+              }}
+              className={`w-full ${config.entradas_gratis_url ? 'bg-white hover:bg-gray-100 active:scale-[0.98]' : 'bg-white/50 cursor-not-allowed opacity-40'} text-neutral-900 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm`}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
                 <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
                 <path d="m9 12 2 2 4-4"/>
               </svg>
               Entradas sin cargo
-            </button>
+            </a>
           </div>
         </div>
 
