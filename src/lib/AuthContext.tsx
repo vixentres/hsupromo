@@ -1,37 +1,23 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from './supabase';
-
-interface User {
-  id?: string;
-  nombre: string;
-  rut: string;
-  correo: string;
-  instagram: string;
-  chat_link: string;
-  rol: string;
-}
+import { supabase, type Promotor } from './supabase';
 
 interface AuthContextType {
-  user: User | null;
+  user: Omit<Promotor, 'clave'> | null;
   loading: boolean;
-  login: (correo: string, clave: string) => Promise<{ success: boolean; message?: string }>;
+  login: (correo: string, clave: string) => Promise<{ success: boolean; message?: string; rol?: string }>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<Omit<Promotor, 'clave'> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('hsu_user');
     if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error("Error parsing stored user", e);
-      }
+      try { setUser(JSON.parse(storedUser)); } catch (e) { console.error(e); }
     }
     setLoading(false);
   }, []);
@@ -45,15 +31,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('clave', clave)
         .single();
 
-      if (error || !data) {
-        return { success: false, message: 'Credenciales inválidas' };
-      }
+      if (error || !data) return { success: false, message: 'Credenciales inválidas' };
 
-      const { clave: _, ...userWithoutPassword } = data;
-      setUser(userWithoutPassword as User);
+      const { clave: _, ...userWithoutPassword } = data as Promotor;
+      setUser(userWithoutPassword);
       localStorage.setItem('hsu_user', JSON.stringify(userWithoutPassword));
-      return { success: true };
-    } catch (error) {
+      return { success: true, rol: userWithoutPassword.rol };
+    } catch {
       return { success: false, message: 'Error de red' };
     }
   };
@@ -72,9 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
-
