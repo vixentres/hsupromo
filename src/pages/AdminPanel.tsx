@@ -59,6 +59,25 @@ export default function AdminPanel() {
       {activeTab === 'tasks' && (
         <div className="space-y-6">
           <div className="bg-neutral-800 rounded-2xl p-6 border border-white/5">
+            <h2 className="text-xl font-bold mb-4">Configuración Global (Landing & Drive)</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="text-xs uppercase font-bold text-gray-400 block mb-1">URL Imagen del Banner</label>
+                <input type="text" placeholder="https://ejemplo.com/banner.jpg" className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
+              </div>
+              <div>
+                <label className="text-xs uppercase font-bold text-gray-400 block mb-1">Carpeta Drive (Material Nuevo)</label>
+                <input type="text" placeholder="https://drive.google.com/..." className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
+              </div>
+              <div>
+                <label className="text-xs uppercase font-bold text-gray-400 block mb-1">Carpeta Drive (Histórico)</label>
+                <input type="text" placeholder="https://drive.google.com/..." className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
+              </div>
+            </div>
+            <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors text-sm">Guardar Configuración Global</button>
+          </div>
+
+          <div className="bg-neutral-800 rounded-2xl p-6 border border-white/5">
             <h2 className="text-xl font-bold mb-4">Añadir Tarea Diaria</h2>
             <div className="flex gap-4">
               <input type="text" placeholder="Título de la tarea..." className="flex-1 bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
