@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Folder, CheckCircle, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOut, Clock } from 'lucide-react';
+import { Copy, Folder, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOut, Clock, Link as LinkIcon } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase, getCountdown, type Tarea, type Revision, type EstadoColor } from '../lib/supabase';
@@ -33,7 +33,7 @@ export default function PromoterDashboard() {
     if (user) loadDashboard();
   }, [user]);
 
-  // Cuenta regresiva de la tarea (24h desde created_at)
+  // Cuenta regresiva de la tarea
   useEffect(() => {
     if (!tarea) return;
     const deadline = new Date(new Date(tarea.created_at!).getTime() + tarea.horas_duracion * 3600000);
@@ -47,59 +47,73 @@ export default function PromoterDashboard() {
     setLoadingData(true);
     const today = new Date().toISOString().split('T')[0];
 
-    // Config para material RRSS
     const { data: cfg } = await supabase.from('config').select('material_nuevo_url').eq('id', 1).single();
     if (cfg) setMaterialUrl(cfg.material_nuevo_url || '');
 
-    // Tarea activa del día
     const { data: tareaData } = await supabase
-      .from('tareas')
-      .select('*')
-      .eq('activa', true)
-      .eq('fecha_tarea', today)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .from('tareas').select('*').eq('activa', true).eq('fecha_tarea', today)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
 
     setTarea(tareaData);
 
     if (tareaData && user) {
       const uid = (user as any).id;
 
-      // Mi submission (self row)
+      // Mi submission
       const { data: myRev } = await supabase
-        .from('revisiones')
-        .select('*')
-        .eq('tarea_id', tareaData.id)
-        .eq('promotor_id', uid)
-        .eq('auditor_id', uid)
-        .maybeSingle();
-
+        .from('revisiones').select('*')
+        .eq('tarea_id', tareaData.id).eq('promotor_id', uid).eq('auditor_id', uid).maybeSingle();
       setRevision(myRev);
 
-      // A quién audito yo (filas donde soy auditor pero no es self)
+      // A quién audito yo
       const { data: revAuditor } = await supabase
         .from('revisiones')
         .select('*, promotores!revisiones_promotor_id_fkey(id, nombre, instagram)')
-        .eq('tarea_id', tareaData.id)
-        .eq('auditor_id', uid)
-        .neq('promotor_id', uid);
+        .eq('tarea_id', tareaData.id).eq('auditor_id', uid).neq('promotor_id', uid);
 
-      setAsignados(revAuditor || []);
+      if (revAuditor && revAuditor.length > 0) {
+        const targetIds = revAuditor.map(r => r.promotor_id);
+        const { data: selfRows } = await supabase
+          .from('revisiones').select('promotor_id, auditor_id, submission_status')
+          .eq('tarea_id', tareaData.id).in('promotor_id', targetIds);
+        
+        const selfStatusMap = new Map();
+        selfRows?.forEach(r => {
+          if (r.promotor_id === r.auditor_id) selfStatusMap.set(r.promotor_id, r.submission_status);
+        });
+
+        const enriched = revAuditor.map(r => ({
+          ...r,
+          target_published: selfStatusMap.get(r.promotor_id) !== 'rojo'
+        }));
+        setAsignados(enriched);
+      } else {
+        setAsignados([]);
+      }
     }
     setLoadingData(false);
   };
 
-  const marcarPublicado = async () => {
-    if (!tarea || !user) return;
+  const myStatus: EstadoColor = revision?.admin_override || revision?.submission_status || 'rojo';
+  const isPublished = myStatus !== 'rojo';
+  const isExpired = countdown === 'Expirado';
+
+  const togglePublicado = async () => {
+    if (!tarea || !user || isExpired) return;
+    if (myStatus === 'verde' || myStatus === 'morado' || myStatus === 'naranja') return; // Bloquear toggle si ya fue evaluado
+
     const uid = (user as any).id;
+    const newStatus = isPublished ? 'rojo' : 'amarillo';
+    
+    // Actualización local rápida
+    setRevision(prev => prev ? { ...prev, submission_status: newStatus } : null);
+
     const { data } = await supabase
       .from('revisiones')
-      .update({ submission_status: 'amarillo' })
-      .eq('tarea_id', tarea.id)
-      .eq('promotor_id', uid)
-      .eq('auditor_id', uid)
+      .update({ submission_status: newStatus })
+      .eq('tarea_id', tarea.id).eq('promotor_id', uid).eq('auditor_id', uid)
       .select().single();
+      
     if (data) setRevision(data);
   };
 
@@ -118,14 +132,15 @@ export default function PromoterDashboard() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const getInstagramUrl = (ig: string) =>
-    linkMode === 'historias'
-      ? `https://www.instagram.com/stories/${ig}/`
-      : `https://www.instagram.com/${ig}/`;
+  const handleVerMaterial = async () => {
+    await copyLink();
+    if (materialUrl) window.open(materialUrl, '_blank', 'noopener,noreferrer');
+  };
 
-  const myStatus: EstadoColor = revision?.admin_override || revision?.submission_status || 'rojo';
+  const getInstagramUrl = (ig: string) =>
+    linkMode === 'historias' ? `https://www.instagram.com/stories/${ig}/` : `https://www.instagram.com/${ig}/`;
+
   const style = STATUS_STYLE[myStatus];
-  const isExpired = countdown === 'Expirado';
 
   if (loading || !user) return (
     <div className="flex items-center justify-center min-h-screen bg-neutral-950">
@@ -150,7 +165,7 @@ export default function PromoterDashboard() {
           </div>
           <div className="flex gap-2">
             <button onClick={copyLink}
-              className="bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors border border-white/8">
+              className="bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors border border-white/8 text-white relative">
               <Copy size={12} /> {copied ? '✓ Copiado' : 'Mi Link'}
             </button>
             <button onClick={handleLogout}
@@ -179,7 +194,7 @@ export default function PromoterDashboard() {
           <>
             {/* ── MI TAREA ────────────────────────────────────────── */}
             <div className={`border rounded-2xl p-6 mb-6 transition-all ${style.card}`}>
-              <div className="flex justify-between items-start gap-4 mb-5">
+              <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-6">
                 <div className="flex-1">
                   <span className={`text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-full mb-3 inline-block ${style.badge}`}>
                     {style.label}
@@ -196,50 +211,53 @@ export default function PromoterDashboard() {
                   </div>
                 </div>
 
-                {/* Botón publicar */}
-                {myStatus === 'rojo' && !isExpired && (
-                  <button
-                    onClick={marcarPublicado}
-                    className="flex-shrink-0 bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-2 text-sm transition-all shadow-lg shadow-red-900/30"
-                  >
-                    <CheckCircle size={16} />
-                    Ya lo subí a mis Stories
-                  </button>
-                )}
-                {myStatus === 'amarillo' && (
-                  <div className="flex-shrink-0 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-bold px-4 py-2 rounded-xl">
-                    Publicado ✓<br />
-                    <span className="text-[10px] font-normal text-yellow-600">Esperando auditores</span>
-                  </div>
-                )}
-                {(myStatus === 'verde' || myStatus === 'morado' || myStatus === 'naranja') && (
-                  <div className="flex-shrink-0 text-center">
-                    <span className={`text-2xl`}>{myStatus === 'verde' ? '🟢' : myStatus === 'morado' ? '🟣' : '🟠'}</span>
-                  </div>
-                )}
+                {/* Switch de Estado */}
+                <div className="flex-shrink-0 bg-neutral-950/50 border border-white/10 rounded-2xl p-4 flex flex-col items-center justify-center min-w-[160px]">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2">Estado de tu publicación</p>
+                  
+                  {(myStatus === 'verde' || myStatus === 'morado' || myStatus === 'naranja') ? (
+                    <div className="text-center py-1">
+                      <span className="text-3xl">{myStatus === 'verde' ? '🟢' : myStatus === 'morado' ? '🟣' : '🟠'}</span>
+                      <p className="text-xs font-bold text-white mt-2">Misión Cerrada</p>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={togglePublicado}
+                      disabled={isExpired}
+                      className={`relative flex items-center w-20 h-10 rounded-full transition-all duration-300 border-2 ${isPublished ? 'bg-yellow-500/20 border-yellow-500' : 'bg-neutral-800 border-neutral-600'} ${isExpired ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-white/50'}`}
+                    >
+                      <div className={`absolute left-1 top-1 w-7 h-7 rounded-full shadow-lg transition-transform duration-300 flex items-center justify-center ${isPublished ? 'transform translate-x-10 bg-yellow-400' : 'bg-neutral-400'}`}>
+                        {isPublished && <ShieldCheck size={14} className="text-yellow-900" />}
+                      </div>
+                    </button>
+                  )}
+                  {myStatus === 'rojo' && !isExpired && <p className="text-[10px] text-gray-500 mt-2 font-medium">Click para activar</p>}
+                  {myStatus === 'amarillo' && <p className="text-[10px] text-yellow-500 mt-2 font-medium text-center">Revisión solicitada a<br/>compañeros</p>}
+                </div>
               </div>
 
               {/* Botón material RRSS */}
               {materialUrl && (
-                <a
-                  href={materialUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold py-3 rounded-xl text-sm transition-all"
+                <button
+                  onClick={handleVerMaterial}
+                  className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold py-3.5 rounded-xl text-sm transition-all group"
                 >
-                  <Folder size={16} />
-                  Ver Material RRSS
-                </a>
+                  <Folder size={16} className="group-hover:scale-110 transition-transform" />
+                  Descargar Material RRSS
+                  <div className="absolute right-4 flex items-center gap-1.5 text-[10px] bg-neutral-950/40 px-2 py-1 rounded border border-white/10 text-gray-400">
+                    <LinkIcon size={10} /> Copia tu link auto.
+                  </div>
+                </button>
               )}
             </div>
 
             {/* ── EXPLICACIÓN DEL ESTADO ──────────────────────────── */}
             <div className="bg-neutral-900/60 border border-white/5 rounded-xl px-5 py-4 mb-6 text-xs text-gray-500 leading-relaxed">
-              {myStatus === 'rojo' && '🔴 Todavía no has marcado tu publicación como realizada. Sube el banner en tus Stories y presiona "Ya lo subí a mis Stories" para avanzar.'}
-              {myStatus === 'amarillo' && '🟡 Marcaste tu publicación como realizada. Tus auditores asignados aún no han verificado si realmente está en tu Instagram. Una vez que voten "SÍ", pasarás a Verde.'}
-              {myStatus === 'verde' && '🟢 ¡Misión cumplida! Publicaste y tus auditores confirmaron que está en tu Instagram. ¡Excelente!'}
-              {myStatus === 'morado' && '🟣 Hiciste tu publicación correctamente y cumpliste auditando a tus compañeros. Si uno de ellos no publicó y votaste "NO", estás protegido — eres un Auditor Leal.'}
-              {myStatus === 'naranja' && '🟠 Tu caso fue marcado como Justificado internamente. No se aplica penalización.'}
+              {myStatus === 'rojo' && '🔴 Aún no has activado tu publicación. Descarga el material, súbelo a tus Stories con tu link, y activa el switch para solicitar revisión.'}
+              {myStatus === 'amarillo' && '🟡 Switch activado. Se ha notificado a tus auditores para que revisen tu perfil. Si verifican que subiste el contenido, pasarás a Verde.'}
+              {myStatus === 'verde' && '🟢 ¡Misión cumplida! Tus auditores confirmaron que la publicación está visible en tu Instagram.'}
+              {myStatus === 'morado' && '🟣 Cumpliste tu parte auditando con honestidad (votaste NO a alguien que incumplió). Eres un Auditor Leal protegido.'}
+              {myStatus === 'naranja' && '🟠 Tu caso fue justificado internamente por el administrador.'}
             </div>
 
             {/* ── AUDITORÍAS ──────────────────────────────────────── */}
@@ -270,24 +288,36 @@ export default function PromoterDashboard() {
                       <div key={asig.id} className="bg-neutral-950 border border-white/8 p-4 rounded-xl">
                         <div className="flex items-center justify-between flex-wrap gap-3">
                           <div>
-                            <p className="text-xs text-gray-500 uppercase font-bold mb-1">Debes revisar a:</p>
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-xs text-gray-500 uppercase font-bold">Debes revisar a:</p>
+                              {asig.target_published ? (
+                                <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1">
+                                  🔔 Switch Activado
+                                </span>
+                              ) : (
+                                <span className="bg-neutral-800 text-gray-500 text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  ⏳ Aún no publica
+                                </span>
+                              )}
+                            </div>
                             <a
                               href={getInstagramUrl(promotor?.instagram)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="font-bold text-white hover:text-blue-400 flex items-center gap-1.5 transition-colors"
+                              className="font-bold text-white hover:text-blue-400 flex items-center gap-1.5 transition-colors text-sm"
                             >
                               @{promotor?.instagram} <ExternalLink size={12} />
                             </a>
                             <p className="text-gray-600 text-xs mt-0.5">{promotor?.nombre}</p>
                           </div>
+                          
                           <div className="flex bg-neutral-900 rounded-xl p-1 border border-white/8 gap-0.5">
                             {(['SI', 'NO', 'JUSTIFICADO'] as const).map(v => {
                               const active = asig.voto === v;
                               const styles: Record<string, string> = {
-                                SI: active ? 'bg-green-500/20 text-green-400 ring-1 ring-green-500/50' : 'text-gray-400 hover:text-green-400',
-                                NO: active ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/50' : 'text-gray-400 hover:text-red-400',
-                                JUSTIFICADO: active ? 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/50' : 'text-gray-400 hover:text-orange-400',
+                                SI: active ? 'bg-green-500/20 text-green-400 ring-1 ring-green-500/50' : 'text-gray-400 hover:text-green-400 hover:bg-white/5',
+                                NO: active ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/50' : 'text-gray-400 hover:text-red-400 hover:bg-white/5',
+                                JUSTIFICADO: active ? 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/50' : 'text-gray-400 hover:text-orange-400 hover:bg-white/5',
                               };
                               const labels: Record<string, string> = { SI: '✅ SÍ', NO: '❌ NO', JUSTIFICADO: '⏸ Just.' };
                               return (

@@ -46,9 +46,14 @@ export default function LandingPage() {
     await supabase.from('metricas').insert([{ promotor_id: promotor.id, tipo_accion: tipo }]);
   };
 
-  // Abrir ANTES del await para evitar que el bloqueador de popups lo bloquee
+  const ensureAbsoluteUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `https://${url}`;
+  };
+
   const handleCTA = (tipo: 'click_tm' | 'click_gratis', url: string) => {
-    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    if (url) window.open(ensureAbsoluteUrl(url), '_blank', 'noopener,noreferrer');
     registerMetric(tipo); // fire & forget
   };
 

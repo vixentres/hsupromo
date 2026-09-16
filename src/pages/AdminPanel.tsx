@@ -132,30 +132,44 @@ export default function AdminPanel() {
   };
 
   const loadHeatMap = async () => {
+    // 1. Obtener todos los promotores
+    const { data: proms } = await supabase.from('promotores').select('id, nombre, instagram').order('created_at');
+    if (!proms) return;
+    
+    // 2. Obtener revisiones
     const { data: revs } = await supabase
       .from('revisiones')
-      .select('*, tareas!revisiones_tarea_id_fkey(fecha_tarea), promotores!revisiones_promotor_id_fkey(id, nombre, instagram)')
+      .select('*, tareas!revisiones_tarea_id_fkey(fecha_tarea), target:promotores!revisiones_promotor_id_fkey(id, nombre, instagram)')
       .order('created_at');
-    if (!revs) return;
-
-    const dates = [...new Set(revs.map((r: any) => r.tareas?.fecha_tarea).filter(Boolean))].sort() as string[];
+    
+    const dates = revs ? [...new Set(revs.map((r: any) => r.tareas?.fecha_tarea).filter(Boolean))].sort() as string[] : [];
     setHeatDates(dates);
 
     const byPromotor: Record<string, any> = {};
-    revs.forEach((r: any) => {
-      const pid = r.promotor_id;
-      if (!byPromotor[pid]) byPromotor[pid] = { promotor: r.promotores, dias: {} };
-      const fecha = r.tareas?.fecha_tarea;
-      if (fecha) {
-        // Solo guardar la entrada "self" (promotor_id === auditor_id) para el status del día
-        if (r.promotor_id === r.auditor_id) {
-          byPromotor[pid].dias[fecha] = {
-            revId: r.id,
-            status: (r.admin_override || r.submission_status || 'rojo') as EstadoColor,
-          };
-        }
-      }
+    proms.forEach((p: any) => {
+      byPromotor[p.id] = { promotor: p, dias: {} };
     });
+
+    if (revs) {
+      revs.forEach((r: any) => {
+        const fecha = r.tareas?.fecha_tarea;
+        if (!fecha) return;
+        const pId = r.promotor_id;
+        const aId = r.auditor_id;
+        
+        if (!byPromotor[pId]) return; // por si acaso
+        if (!byPromotor[pId].dias[fecha]) byPromotor[pId].dias[fecha] = { self: null, asAuditor: [] };
+        if (!byPromotor[aId]) return;
+        if (!byPromotor[aId].dias[fecha]) byPromotor[aId].dias[fecha] = { self: null, asAuditor: [] };
+
+        if (pId === aId) {
+          byPromotor[pId].dias[fecha].self = r;
+        } else {
+          byPromotor[aId].dias[fecha].asAuditor.push(r);
+        }
+      });
+    }
+    
     setHeatData(Object.values(byPromotor));
   };
 
@@ -289,18 +303,30 @@ export default function AdminPanel() {
     let list = [...heatData];
     if (heatColorFilter !== 'todos') {
       list = list.filter(row => {
-        const dia = row.dias[TODAY];
-        return dia?.status === heatColorFilter;
+        const selfRev = row.dias[TODAY]?.self;
+        const status = (selfRev?.admin_override || selfRev?.submission_status || 'rojo') as EstadoColor;
+        return status === heatColorFilter;
       });
     }
     if (heatSort === 'nombre') {
       list.sort((a, b) => (a.promotor?.nombre || '').localeCompare(b.promotor?.nombre || ''));
     } else {
-      const order: EstadoColor[] = ['rojo', 'amarillo', 'verde', 'morado', 'naranja'];
+      // Orden inteligente por estado real (prioridad de acción)
       list.sort((a, b) => {
-        const sa = order.indexOf(a.dias[TODAY]?.status || 'rojo');
-        const sb = order.indexOf(b.dias[TODAY]?.status || 'rojo');
-        return sa - sb;
+        const getScore = (row: any) => {
+          const dia = row.dias[TODAY] || { self: null, asAuditor: [] };
+          const status = (dia.self?.admin_override || dia.self?.submission_status || 'rojo') as EstadoColor;
+          const hasPublished = status !== 'rojo';
+          const pendingAuditsCount = (dia.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
+          
+          if (!hasPublished && pendingAuditsCount > 0) return 1; // Máxima prioridad (rojo + debe revisar)
+          if (!hasPublished && pendingAuditsCount === 0) return 2; // (rojo + ya revisó)
+          if (hasPublished && pendingAuditsCount > 0 && status !== 'verde') return 3; // (amarillo + debe revisar)
+          if (hasPublished && pendingAuditsCount === 0 && status !== 'verde') return 4; // (amarillo + ya revisó)
+          if (status === 'verde' && pendingAuditsCount > 0) return 5; // (verde + debe revisar)
+          return 6; // Verde + ya revisó (todo OK, va al fondo)
+        };
+        return getScore(a) - getScore(b);
       });
     }
     return list;
@@ -589,14 +615,24 @@ export default function AdminPanel() {
                     <thead>
                       <tr className="text-gray-500 text-xs border-b border-white/8">
                         <th className="text-left pb-2 pr-4 font-semibold">Promotor</th>
-                        <th className="text-center pb-2 font-semibold">{formatDate(TODAY)}</th>
-                        <th className="text-left pb-2 pl-4 font-semibold text-xs">Estado</th>
+                        <th className="text-center pb-2 font-semibold">Color</th>
+                        <th className="text-left pb-2 px-4 font-semibold">Debe revisar a</th>
+                        <th className="text-left pb-2 pl-4 font-semibold text-xs">Estado Real</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {getFilteredHeat().map(row => {
-                        const dia = row.dias[TODAY];
-                        const status: EstadoColor = dia?.status || 'rojo';
+                        const dia = row.dias[TODAY] || { self: null, asAuditor: [] };
+                        const selfRev = dia.self;
+                        const status = (selfRev?.admin_override || selfRev?.submission_status || 'rojo') as EstadoColor;
+                        const hasPublished = status !== 'rojo';
+                        const pendingAudits = (dia.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
+                        
+                        let stateText = '';
+                        if (status === 'verde' || status === 'morado' || status === 'naranja') stateText = pendingAudits > 0 ? 'Misión lista, pero debe revisar' : '✅ 100% OK';
+                        else if (hasPublished) stateText = pendingAudits > 0 ? 'Publicó, espera validación y debe revisar' : 'Publicó, espera validación';
+                        else stateText = pendingAudits > 0 ? 'Falta publicar y revisar' : 'Falta publicar';
+
                         return (
                           <tr key={row.promotor?.id} className="hover:bg-neutral-800/20 transition-colors">
                             <td className="py-3 pr-4">
@@ -604,21 +640,41 @@ export default function AdminPanel() {
                                 className="font-semibold text-white hover:text-blue-400 transition-colors">
                                 {row.promotor?.nombre}
                               </a>
-                              <span className="text-gray-600 text-xs ml-1.5">@{row.promotor?.instagram}</span>
+                              <span className="text-gray-600 text-[10px] ml-1.5 opacity-50 block md:inline">@{row.promotor?.instagram}</span>
                             </td>
                             <td className="py-3 text-center">
-                              <HeatCell revId={dia?.revId || null} currentStatus={status} onOverride={overrideColor} />
+                              <HeatCell revId={selfRev?.id || null} currentStatus={status} onOverride={overrideColor} />
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex flex-col gap-1">
+                                {(dia.asAuditor || []).map((a: any, i: number) => (
+                                  <div key={i} className="flex items-center gap-1.5 text-[11px]">
+                                    <span className={a.voto === 'PENDIENTE' ? 'text-yellow-500' : 'text-green-500'}>
+                                      {a.voto === 'PENDIENTE' ? '⏳' : '✅'}
+                                    </span>
+                                    <span className={a.voto === 'PENDIENTE' ? 'text-gray-300' : 'text-gray-600'}>
+                                      {a.target?.nombre || a.target?.instagram}
+                                    </span>
+                                  </div>
+                                ))}
+                                {(!dia.asAuditor || dia.asAuditor.length === 0) && (
+                                  <span className="text-gray-600 text-[10px]">-</span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-3 pl-4">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${COLOR_META[status].bg}/20 text-white border border-white/10`}>
-                                {COLOR_META[status].label}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className={`w-1.5 h-1.5 rounded-full ${pendingAudits > 0 || !hasPublished ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
+                                <span className={`text-[11px] font-semibold ${pendingAudits > 0 || !hasPublished ? 'text-gray-300' : 'text-green-500'}`}>
+                                  {stateText}
+                                </span>
+                              </div>
                             </td>
                           </tr>
                         );
                       })}
                       {getFilteredHeat().length === 0 && (
-                        <tr><td colSpan={3} className="py-8 text-center text-gray-600 text-xs">
+                        <tr><td colSpan={4} className="py-8 text-center text-gray-600 text-xs">
                           {heatColorFilter !== 'todos' ? `No hay promotores con estado "${COLOR_META[heatColorFilter].label}" hoy.` : 'No hay datos para hoy.'}
                         </td></tr>
                       )}
@@ -653,10 +709,12 @@ export default function AdminPanel() {
                               </a>
                             </td>
                             {heatDates.map(d => {
-                              const dia = row.dias[d];
+                              const dia = row.dias[d] || { self: null };
+                              const selfRev = dia.self;
+                              const status = (selfRev?.admin_override || selfRev?.submission_status || 'rojo') as EstadoColor;
                               return (
                                 <td key={d} className="py-3 px-3 text-center">
-                                  <HeatCell revId={dia?.revId || null} currentStatus={dia?.status || 'rojo'} onOverride={overrideColor} />
+                                  <HeatCell revId={selfRev?.id || null} currentStatus={status} onOverride={overrideColor} />
                                 </td>
                               );
                             })}
