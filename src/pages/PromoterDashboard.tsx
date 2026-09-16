@@ -12,13 +12,17 @@ const STATUS_STYLE: Record<EstadoColor, { card: string; badge: string; label: st
   naranja: { card: 'bg-orange-900/20 border-orange-500/30',badge: 'bg-orange-400', label: 'Justificado' },
 };
 
-export default function PromoterDashboard() {
+export default function PromoterDashboard({ impersonatedUser, onExitImpersonation }: { impersonatedUser?: any, onExitImpersonation?: () => void }) {
   const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
+
+  const actualUser = impersonatedUser || user;
 
   const [tarea, setTarea] = useState<Tarea | null>(null);
   const [revision, setRevision] = useState<Revision | null>(null);
   const [asignados, setAsignados] = useState<any[]>([]);
+  const [incomingAudits, setIncomingAudits] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [linkMode, setLinkMode] = useState<'perfil' | 'historias'>('historias');
   const [loadingData, setLoadingData] = useState(true);
   const [countdown, setCountdown] = useState('');
@@ -56,8 +60,8 @@ export default function PromoterDashboard() {
 
     setTarea(tareaData);
 
-    if (tareaData && user) {
-      const uid = (user as any).id;
+    if (tareaData && actualUser) {
+      const uid = (actualUser as any).id;
 
       // Mi submission
       const { data: myRev } = await supabase
@@ -90,7 +94,30 @@ export default function PromoterDashboard() {
       } else {
         setAsignados([]);
       }
+
+      // Quién me audita a mí (Incoming)
+      const { data: incAud } = await supabase
+        .from('revisiones')
+        .select('voto')
+        .eq('tarea_id', tareaData.id)
+        .eq('promotor_id', uid)
+        .neq('auditor_id', uid);
+      setIncomingAudits(incAud || []);
     }
+
+    if (actualUser) {
+      // Fetch historial del usuario
+      const uid = (actualUser as any).id;
+      const { data: hist } = await supabase
+        .from('revisiones')
+        .select('submission_status, admin_override, tareas!inner(fecha_tarea, activa)')
+        .eq('promotor_id', uid)
+        .eq('auditor_id', uid)
+        .order('tareas(fecha_tarea)', { ascending: true });
+      
+      setHistory(hist || []);
+    }
+
     setLoadingData(false);
   };
 
@@ -156,12 +183,22 @@ export default function PromoterDashboard() {
 
   return (
     <div className="min-h-screen bg-neutral-950">
+      {impersonatedUser && (
+        <div className="bg-red-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-between sticky top-0 z-50">
+          <span className="flex items-center gap-2">
+            <span className="animate-pulse">🔴</span> MODO ESPECTADOR: Viendo el panel de {actualUser.nombre}
+          </span>
+          <button onClick={onExitImpersonation} className="bg-black/20 hover:bg-black/40 px-3 py-1 rounded transition-colors">
+            Volver al Admin
+          </button>
+        </div>
+      )}
       {/* Nav */}
-      <nav className="border-b border-white/8 bg-neutral-900/80 backdrop-blur sticky top-0 z-10">
+      <nav className="border-b border-white/8 bg-neutral-900/80 backdrop-blur sticky top-[32px] z-10">
         <div className="max-w-4xl mx-auto px-5 py-3 flex items-center justify-between">
           <div>
             <span className="font-black text-sm">HSU Promotores</span>
-            <span className="text-gray-600 text-xs ml-2">/ {(user as any).nombre}</span>
+            <span className="text-gray-600 text-xs ml-2">/ {actualUser.nombre}</span>
           </div>
           <div className="flex gap-2">
             <button onClick={loadDashboard}
@@ -236,7 +273,19 @@ export default function PromoterDashboard() {
                     </button>
                   )}
                   {myStatus === 'rojo' && !isExpired && <p className="text-[10px] text-gray-500 mt-2 font-medium">Click para activar</p>}
-                  {myStatus === 'amarillo' && <p className="text-[10px] text-yellow-500 mt-2 font-medium text-center">Revisión solicitada a<br/>compañeros</p>}
+                  {myStatus === 'amarillo' && (
+                    <div className="mt-3 w-full">
+                      <p className="text-[10px] text-yellow-500 font-medium text-center mb-1.5">Revisiones pendientes:</p>
+                      <div className="flex justify-center gap-1.5">
+                        {incomingAudits.map((aud, i) => (
+                          <span key={i} title={`Revisión ${i+1}: ${aud.voto}`} className="text-sm bg-neutral-900 border border-white/5 w-6 h-6 flex items-center justify-center rounded-full">
+                            {aud.voto === 'PENDIENTE' ? '⌛' : aud.voto === 'SI' ? '✅' : '❌'}
+                          </span>
+                        ))}
+                        {incomingAudits.length === 0 && <span className="text-[10px] text-gray-500">Sin auditores</span>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -350,6 +399,43 @@ export default function PromoterDashboard() {
                 </div>
               )}
             </div>
+            {/* ── MI HISTORIAL ──────────────────────────────────────── */}
+            {history.length > 0 && (
+              <div className="mt-8 border-t border-white/8 pt-8">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Clock size={16} /> Tu Historial de Misiones
+                </h3>
+                <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 overflow-x-auto">
+                  <div className="flex gap-2 min-w-max">
+                    {history.map((h, i) => {
+                      const st = h.admin_override || h.submission_status || 'rojo';
+                      const isTodayTask = h.tareas?.activa;
+                      let colorClass = 'bg-red-500';
+                      if (st === 'amarillo') colorClass = 'bg-yellow-400';
+                      if (st === 'verde') colorClass = 'bg-green-500';
+                      if (st === 'morado') colorClass = 'bg-purple-500';
+                      if (st === 'naranja') colorClass = 'bg-orange-400';
+
+                      const dateObj = h.tareas?.fecha_tarea ? new Date(h.tareas.fecha_tarea + 'T12:00:00') : new Date();
+                      const dateLabel = dateObj.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+
+                      return (
+                        <div key={i} className="flex flex-col items-center gap-2">
+                          <div title={`Día: ${dateLabel} | Estado: ${st}`} 
+                               className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 ${colorClass} ${isTodayTask ? 'ring-4 ring-white/20 ring-offset-2 ring-offset-neutral-900' : 'opacity-80'}`}>
+                            {st === 'verde' && <ShieldCheck size={16} className="text-green-900" />}
+                            {st === 'morado' && <span className="text-[10px] font-black text-purple-900">PRO</span>}
+                            {st === 'rojo' && <span className="text-[10px] font-black text-red-900">X</span>}
+                            {st === 'amarillo' && <span className="text-[10px] font-black text-yellow-900">...</span>}
+                          </div>
+                          <span className="text-[10px] text-gray-500 font-semibold">{dateLabel}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

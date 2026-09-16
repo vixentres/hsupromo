@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Settings, BarChart3, Plus, Trash2, Save,
-  LogOut, Search, Copy, ChevronUp, ChevronDown, Clock, ShieldCheck, RefreshCw, FileText
+  LogOut, Search, Copy, ChevronUp, ChevronDown, Clock, ShieldCheck, RefreshCw, FileText, Eye
 } from 'lucide-react';
 import { supabase, transformDriveUrl, type Promotor, type Tarea, type EstadoColor, type Config } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import PromoterDashboard from './PromoterDashboard';
 
 // ─── Constantes de color ─────────────────────────────────────────────────────
 const COLORS: EstadoColor[] = ['rojo', 'amarillo', 'verde', 'morado', 'naranja'];
@@ -106,6 +107,10 @@ export default function AdminPanel() {
   const [heatDates, setHeatDates] = useState<string[]>([]);
   const [heatColorFilter, setHeatColorFilter] = useState<EstadoColor | 'todos'>('todos');
   const [heatSort, setHeatSort] = useState<'nombre' | 'estado'>('nombre');
+  const [selectedHeatDate, setSelectedHeatDate] = useState<string>(TODAY);
+
+  // ── Impersonation ─────────────────────────────────────────────────────────
+  const [impersonated, setImpersonated] = useState<any>(null);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const [metrics, setMetrics] = useState<any[]>([]);
@@ -116,8 +121,13 @@ export default function AdminPanel() {
 
   const loadAll = async () => {
     setLoading(true);
-    await Promise.all([loadUsers(), loadTareas(), loadConfig(), loadHeatMap(), loadMetrics()]);
-    setLoading(false);
+    try {
+      await Promise.all([loadUsers(), loadTareas(), loadConfig(), loadHeatMap(), loadMetrics()]);
+    } catch (error) {
+      console.error("Error loading admin data:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadUsers = async () => {
@@ -373,6 +383,10 @@ export default function AdminPanel() {
 
   if (loading) return <div className="p-10 text-center text-gray-500">Cargando Admin Hub...</div>;
   if (!user || user.rol !== 'admin') return null;
+
+  if (impersonated) {
+    return <PromoterDashboard impersonatedUser={impersonated} onExitImpersonation={() => setImpersonated(null)} />;
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -678,11 +692,11 @@ export default function AdminPanel() {
 
               <Leyenda />
 
-              {/* HOY */}
+              {/* DÍA SELECCIONADO (TOP) */}
               <div className="mb-8">
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                  Hoy — {formatDate(TODAY)}
+                  <span className={`w-2 h-2 rounded-full ${selectedHeatDate === TODAY ? 'bg-blue-400 animate-pulse' : 'bg-gray-400'}`} />
+                  {selectedHeatDate === TODAY ? 'Hoy' : 'Día seleccionado'} — {formatDate(selectedHeatDate)}
                   {heatColorFilter !== 'todos' && (
                     <span className="text-[10px] font-normal text-gray-600">
                       ({getFilteredHeat().length} con estado {COLOR_META[heatColorFilter].label})
@@ -697,11 +711,12 @@ export default function AdminPanel() {
                         <th className="text-center pb-2 font-semibold">Color</th>
                         <th className="text-left pb-2 px-4 font-semibold">Debe revisar a</th>
                         <th className="text-left pb-2 pl-4 font-semibold text-xs">Estado Real</th>
+                        <th className="text-right pb-2 font-semibold">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {getFilteredHeat().map(row => {
-                        const dia = row.dias[TODAY] || { self: null, asAuditor: [] };
+                        const dia = row.dias[selectedHeatDate] || { self: null, asAuditor: [] };
                         const selfRev = dia.self;
                         const status = (selfRev?.admin_override || selfRev?.submission_status || 'rojo') as EstadoColor;
                         const hasPublished = status !== 'rojo';
@@ -749,12 +764,19 @@ export default function AdminPanel() {
                                 </span>
                               </div>
                             </td>
+                            <td className="py-3 text-right">
+                              <button onClick={() => setImpersonated(row.promotor)}
+                                className="inline-flex items-center justify-center bg-white/5 hover:bg-white/15 border border-white/10 text-white rounded-lg p-1.5 transition-colors"
+                                title={`Ver panel como ${row.promotor?.nombre}`}>
+                                <Eye size={14} />
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
                       {getFilteredHeat().length === 0 && (
-                        <tr><td colSpan={4} className="py-8 text-center text-gray-600 text-xs">
-                          {heatColorFilter !== 'todos' ? `No hay promotores con estado "${COLOR_META[heatColorFilter].label}" hoy.` : 'No hay datos para hoy.'}
+                        <tr><td colSpan={5} className="py-8 text-center text-gray-600 text-xs">
+                          {heatColorFilter !== 'todos' ? `No hay promotores con estado "${COLOR_META[heatColorFilter].label}" en esta fecha.` : 'No hay datos para esta fecha.'}
                         </td></tr>
                       )}
                     </tbody>
@@ -772,7 +794,9 @@ export default function AdminPanel() {
                         <tr className="text-gray-500 text-xs border-b border-white/8">
                           <th className="text-left pb-2 pr-6 font-semibold sticky left-0 bg-neutral-900 min-w-[150px]">Promotor</th>
                           {heatDates.map(d => (
-                            <th key={d} className={`text-center pb-2 px-3 font-semibold ${d === TODAY ? 'text-blue-400' : ''}`}>
+                            <th key={d} 
+                                onClick={() => setSelectedHeatDate(d)}
+                                className={`text-center pb-2 px-3 font-semibold cursor-pointer transition-colors hover:text-white ${d === selectedHeatDate ? 'text-white bg-blue-500/20 border-b-2 border-blue-500' : (d === TODAY ? 'text-blue-400' : '')}`}>
                               {formatDate(d)}
                             </th>
                           ))}
