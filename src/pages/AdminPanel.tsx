@@ -246,18 +246,37 @@ export default function AdminPanel() {
   const saveUsers = async () => {
     setSavingUsers(true);
     
-    // Solo upsertar las filas que realmente han sido editadas o son nuevas
-    const rowsToSave = promotores.filter(p => p.id.startsWith('new_') || editedRows[p.id]).map(p => {
-      const row = { ...p, ...editedRows[p.id] };
-      if (row.id.startsWith('new_')) delete (row as any).id;
-      return row;
-    });
+    // Separar en INSERT (nuevos) y UPDATE (existentes) para evitar conflictos de columnas con Supabase
+    const newRowsToInsert = promotores
+      .filter(p => p.id.startsWith('new_') && editedRows[p.id])
+      .map(p => {
+        const row = { ...p, ...editedRows[p.id] };
+        delete (row as any).id; // Remove temporary ID
+        return row;
+      });
 
-    if (rowsToSave.length > 0) {
-      await supabase.from('promotores').upsert(rowsToSave, { onConflict: 'id' });
+    const existingRowsToUpdate = promotores
+      .filter(p => !p.id.startsWith('new_') && editedRows[p.id])
+      .map(p => ({ ...p, ...editedRows[p.id] }));
+
+    try {
+      if (newRowsToInsert.length > 0) {
+        const { error } = await supabase.from('promotores').insert(newRowsToInsert);
+        if (error) throw error;
+      }
+      
+      if (existingRowsToUpdate.length > 0) {
+        const { error } = await supabase.from('promotores').upsert(existingRowsToUpdate, { onConflict: 'id' });
+        if (error) throw error;
+      }
+      
+      setEditedRows({});
+      await loadUsers();
+    } catch (err: any) {
+      alert('Error guardando usuarios: ' + (err.message || 'Verifica los datos.'));
+      console.error(err);
     }
-    setEditedRows({});
-    await loadUsers();
+    
     setSavingUsers(false);
   };
 
