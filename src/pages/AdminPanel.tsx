@@ -234,18 +234,28 @@ export default function AdminPanel() {
 
   const deleteRow = async (id: string) => {
     if (id.startsWith('new_')) { setPromotores(prev => prev.filter(p => p.id !== id)); return; }
-    if (!confirm('¿Eliminar este promotor permanentemente?')) return;
+    const res = prompt('ATENCIÓN: ¿Estás seguro que deseas eliminar este promotor y todo su historial? Escribe ELIMINAR para confirmar.');
+    if (res !== 'ELIMINAR') {
+      if (res !== null) alert('Eliminación cancelada. Debes escribir ELIMINAR.');
+      return;
+    }
     await supabase.from('promotores').delete().eq('id', id);
     setPromotores(prev => prev.filter(p => p.id !== id));
   };
 
   const saveUsers = async () => {
     setSavingUsers(true);
-    const toUpsert = promotores.map(p => ({
-      ...p, ...editedRows[p.id],
-      ...(p.id.startsWith('new_') ? { id: undefined } : { id: p.id }),
-    }));
-    await supabase.from('promotores').upsert(toUpsert, { onConflict: 'id' });
+    
+    // Solo upsertar las filas que realmente han sido editadas o son nuevas
+    const rowsToSave = promotores.filter(p => p.id.startsWith('new_') || editedRows[p.id]).map(p => {
+      const row = { ...p, ...editedRows[p.id] };
+      if (row.id.startsWith('new_')) delete (row as any).id;
+      return row;
+    });
+
+    if (rowsToSave.length > 0) {
+      await supabase.from('promotores').upsert(rowsToSave, { onConflict: 'id' });
+    }
     setEditedRows({});
     await loadUsers();
     setSavingUsers(false);
@@ -450,10 +460,16 @@ export default function AdminPanel() {
                 ))}
               </div>
 
-              <button onClick={saveUsers} disabled={savingUsers || Object.keys(editedRows).length === 0}
-                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-xl flex items-center gap-2 text-sm transition-all ml-auto">
-                <Save size={14} /> {savingUsers ? 'Guardando...' : `Guardar${Object.keys(editedRows).length > 0 ? ` (${Object.keys(editedRows).length})` : ''}`}
-              </button>
+              <div className="flex items-center gap-2 ml-auto">
+                <button onClick={addRow}
+                  className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white font-bold py-2 px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
+                  <Plus size={14} /> Añadir
+                </button>
+                <button onClick={saveUsers} disabled={savingUsers || Object.keys(editedRows).length === 0}
+                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
+                  <Save size={14} /> {savingUsers ? 'Guardando...' : `Guardar${Object.keys(editedRows).length > 0 ? ` (${Object.keys(editedRows).length})` : ''}`}
+                </button>
+              </div>
             </div>
 
             {/* Tabla */}
