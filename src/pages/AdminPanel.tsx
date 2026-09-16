@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Settings, BarChart3, Plus, Trash2, Save,
-  LogOut, Search, Copy, ChevronUp, ChevronDown,
+  LogOut, Search, Copy, ChevronUp, ChevronDown, Clock, ShieldCheck, RefreshCw, FileText
 } from 'lucide-react';
 import { supabase, transformDriveUrl, type Promotor, type Tarea, type EstadoColor, type Config } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -110,11 +110,14 @@ export default function AdminPanel() {
   // ── Stats ─────────────────────────────────────────────────────────────────
   const [metrics, setMetrics] = useState<any[]>([]);
   const [statsFilter, setStatsFilter] = useState<'visita' | 'click_tm' | 'click_gratis'>('visita');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
+    setLoading(true);
     await Promise.all([loadUsers(), loadTareas(), loadConfig(), loadHeatMap(), loadMetrics()]);
+    setLoading(false);
   };
 
   const loadUsers = async () => {
@@ -247,40 +250,62 @@ export default function AdminPanel() {
     setTimeout(() => setCopied(null), 1500);
   };
 
+  const [configOpen, setConfigOpen] = useState(false);
+
+  const addHours = async (tareaId: string, extraHours: number) => {
+    const tarea = tareas.find(t => t.id === tareaId);
+    if (!tarea) return;
+    const currentHours = tarea.horas_duracion || 24;
+    await supabase.from('tareas').update({ horas_duracion: currentHours + extraHours }).eq('id', tareaId);
+    alert(`Se agregaron ${extraHours}h a la tarea.`);
+    loadTareas();
+  };
+
   // ── Tareas: crear ─────────────────────────────────────────────────────────
   const crearTarea = async () => {
     setCreatingTask(true);
     const titulo = newTask.titulo.trim() || `Tarea del día ${formatDate(TODAY)}`;
+    
+    // Solo promotores para la asignación
+    const { data: proms } = await supabase.from('promotores').select('id').eq('rol', 'promotor').order('created_at');
+    if (!proms || proms.length === 0) {
+      alert('No hay promotores para asignar.');
+      setCreatingTask(false);
+      return;
+    }
 
-    const { data: tarea, error } = await supabase
-      .from('tareas')
-      .insert([{ titulo, horas_duracion: newTask.horas_duracion, fecha_tarea: TODAY, activa: true }])
-      .select().single();
+    const { data: tarea, error } = await supabase.from('tareas').insert({
+      titulo, horas_duracion: newTask.horas_duracion, material_nuevo: newTask.material_nuevo, activa: true, fecha_tarea: TODAY
+    }).select().single();
 
     if (error || !tarea) { alert('Error al crear tarea: ' + error?.message); setCreatingTask(false); return; }
-
-    const { data: proms } = await supabase.from('promotores').select('id').eq('rol', 'promotor');
-    if (!proms || proms.length < 2) { alert('Se necesitan al menos 2 promotores'); setCreatingTask(false); return; }
-
-    const n = proms.length;
-    const numAuditores = Math.min(config.auditores_por_tarea, n - 1);
-
-    // Filas "self" — una por promotor para su submission_status personal
-    const selfRows = proms.map(p => ({
-      tarea_id: tarea.id, promotor_id: p.id, auditor_id: p.id,
-      voto: 'PENDIENTE', submission_status: 'rojo',
-    }));
-
-    // Filas de auditoría cruzada circular
+    
+    const tareaId = tarea.id;
+    const selfRows: any[] = [];
     const auditRows: any[] = [];
-    proms.forEach((promotor, idx) => {
+
+    // Desactivar las de días anteriores
+    await supabase.from('tareas').update({ activa: false }).neq('id', tareaId);
+
+    const numAuditores = Math.min(config.auditores_por_tarea || 2, proms.length - 1);
+
+    proms.forEach((p, i) => {
+      selfRows.push({
+        tarea_id: tareaId,
+        promotor_id: p.id,
+        auditor_id: p.id,
+        voto: 'SI', // Placeholder para su propia "auditoría"
+        submission_status: 'rojo'
+      });
+
       for (let k = 1; k <= numAuditores; k++) {
-        const auditorIdx = (idx + k) % n;
+        const audIdx = (i + k) % proms.length;
         auditRows.push({
-          tarea_id: tarea.id,
-          promotor_id: proms[auditorIdx].id,  // quien es auditado
-          auditor_id: promotor.id,             // quien audita
-          voto: 'PENDIENTE', submission_status: 'rojo',
+          tarea_id: tareaId,
+          promotor_id: proms[audIdx].id, // Quien es auditado
+          auditor_id: p.id,              // Quien audita
+          voto: 'PENDIENTE',
+          submission_status: 'rojo'
         });
       }
     });
@@ -294,9 +319,11 @@ export default function AdminPanel() {
   };
 
   // ── Mapa calor: override ─────────────────────────────────────────────────
-  const overrideColor = async (revId: string, color: EstadoColor) => {
+  const overrideColor = async (revId: string | null, color: EstadoColor) => {
+    if (!revId) return alert('Este usuario no tiene entrada para hoy.');
+    if (!window.confirm(`¿Forzar color a ${COLOR_META[color].label}?`)) return;
     await supabase.from('revisiones').update({ admin_override: color }).eq('id', revId);
-    await loadHeatMap();
+    loadHeatMap();
   };
 
   // ── Mapa de calor: filtros ─────────────────────────────────────────────────
@@ -344,36 +371,42 @@ export default function AdminPanel() {
 
   const bannerPreview = transformDriveUrl(config.banner_url);
 
+  if (loading) return <div className="p-10 text-center text-gray-500">Cargando Admin Hub...</div>;
+  if (!user || user.rol !== 'admin') return null;
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-neutral-950">
-      {/* Nav */}
-      <nav className="border-b border-white/8 bg-neutral-900/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="font-black tracking-tight">Admin Hub</span>
-            <span className="bg-red-500/20 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-500/30 uppercase">Admin</span>
+    <div className="min-h-screen bg-black text-white p-4 md:p-8 font-sans">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* Encabezado Principal */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-neutral-900 border border-white/8 rounded-2xl p-6">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
+              <ShieldCheck className="text-blue-500" /> Admin Hub
+            </h1>
+            <p className="text-gray-500 text-sm mt-1">Gestión de promotores, misiones y métricas</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-gray-500 text-xs">{(user as any)?.nombre}</span>
-            <button onClick={handleLogout} className="bg-neutral-800 hover:bg-neutral-700 text-gray-400 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors border border-white/8">
-              <LogOut size={13} /> Salir
+            <button onClick={loadAll} className="flex items-center gap-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded-xl transition-colors">
+              <RefreshCw size={14} /> Refrescar
+            </button>
+            <button onClick={logout} className="flex items-center gap-1.5 text-xs font-bold text-red-400 bg-red-950/30 hover:bg-red-900/40 border border-red-500/20 px-4 py-2 rounded-xl transition-colors">
+              <LogOut size={14} /> Salir
             </button>
           </div>
         </div>
-      </nav>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Tabs */}
-        <div className="flex gap-1 bg-neutral-900 border border-white/8 p-1 rounded-xl mb-8 w-fit">
-          {([
-            { id: 'users', label: 'Usuarios', icon: Users },
-            { id: 'tasks', label: 'Gestor de Tareas', icon: Settings },
-            { id: 'stats', label: 'Analíticas', icon: BarChart3 },
-          ] as const).map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setActiveTab(id)}
-              className={`px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === id ? 'bg-white text-neutral-900 shadow-sm' : 'text-gray-400 hover:text-white'}`}>
-              <Icon size={15} /> {label}
+        {/* Tabs Principales */}
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {(['users', 'tasks', 'stats'] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2
+              ${activeTab === tab ? 'bg-white text-neutral-900 shadow-lg' : 'bg-neutral-900 text-gray-400 hover:text-white border border-white/5 hover:bg-neutral-800'}`}>
+              {tab === 'users' && <Users size={16} />}
+              {tab === 'tasks' && <FileText size={16} />}
+              {tab === 'stats' && <BarChart3 size={16} />}
+              {tab === 'users' ? 'Promotores' : tab === 'tasks' ? 'Gestor de Tareas' : 'Analíticas'}
             </button>
           ))}
         </div>
@@ -493,77 +526,117 @@ export default function AdminPanel() {
           <div className="space-y-6">
 
             {/* Config Global */}
-            <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6">
-              <h2 className="font-black text-base mb-1">Configuración Global</h2>
-              <p className="text-gray-500 text-xs mb-5">Pega URLs de Google Drive — se convierten automáticamente a imagen renderizable</p>
+            <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden transition-all">
+              <div 
+                className="px-6 py-4 flex justify-between items-center cursor-pointer hover:bg-white/5 transition-colors"
+                onClick={() => setConfigOpen(!configOpen)}
+              >
+                <div>
+                  <h2 className="font-black text-base flex items-center gap-2">Configuración Global</h2>
+                  <p className="text-gray-500 text-xs mt-0.5">Links, banner y opciones del sistema</p>
+                </div>
+                <ChevronDown size={18} className={`text-gray-400 transition-transform ${configOpen ? 'rotate-180' : ''}`} />
+              </div>
+              
+              {configOpen && (
+                <div className="p-6 border-t border-white/8 bg-neutral-950/30">
+                  {/* Preview del banner */}
+                  {config.banner_url && (
+                    <div className="mb-4 w-full max-w-xs rounded-xl overflow-hidden border border-white/10 aspect-video bg-neutral-800">
+                      <img src={bannerPreview} alt="Preview banner"
+                        className="w-full h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    </div>
+                  )}
 
-              {/* Preview del banner */}
-              {config.banner_url && (
-                <div className="mb-4 w-full max-w-xs rounded-xl overflow-hidden border border-white/10 aspect-video bg-neutral-800">
-                  <img src={bannerPreview} alt="Preview banner"
-                    className="w-full h-full object-cover"
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    {([
+                      ['banner_url', 'URL Banner (Drive o directa)', 'https://drive.google.com/file/d/.../view'],
+                      ['ticketmaster_url', 'URL Botón "Comprar en Ticketmaster"', 'https://www.ticketmaster.cl/...'],
+                      ['entradas_gratis_url', 'URL Botón "Entradas sin cargo"', 'https://...'],
+                      ['material_nuevo_url', 'URL Material RRSS (Drive — carpeta con todo)', 'https://drive.google.com/drive/folders/...'],
+                    ] as const).map(([field, label, placeholder]) => (
+                      <div key={field} className={field === 'banner_url' ? 'md:col-span-2' : ''}>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">{label}</label>
+                        <input type="text" value={config[field] || ''} placeholder={placeholder}
+                          onChange={e => setConfig(c => ({ ...c, [field]: e.target.value }))}
+                          className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all" />
+                      </div>
+                    ))}
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Fecha del Evento (para cuenta regresiva)</label>
+                      <input type="date" value={config.fecha_evento || '2027-01-15'}
+                        onChange={e => setConfig(c => ({ ...c, fecha_evento: e.target.value }))}
+                        className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all text-white" />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Auditores por tarea</label>
+                      <input type="number" min={1} max={5} value={config.auditores_por_tarea}
+                        onChange={e => setConfig(c => ({ ...c, auditores_por_tarea: parseInt(e.target.value) }))}
+                        className="w-20 bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none text-center" />
+                    </div>
+                    <button onClick={saveConfig} disabled={savingConfig}
+                      className="mt-5 bg-white hover:bg-gray-100 text-neutral-900 font-bold py-2 px-5 rounded-xl text-sm flex items-center gap-2 transition-colors border border-white/10">
+                      <Save size={14} /> {savingConfig ? 'Guardando...' : 'Guardar Config'}
+                    </button>
+                  </div>
                 </div>
               )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                {([
-                  ['banner_url', 'URL Banner (Drive o directa)', 'https://drive.google.com/file/d/.../view'],
-                  ['ticketmaster_url', 'URL Botón "Comprar en Ticketmaster"', 'https://www.ticketmaster.cl/...'],
-                  ['entradas_gratis_url', 'URL Botón "Entradas sin cargo"', 'https://...'],
-                  ['material_nuevo_url', 'URL Material RRSS (Drive — carpeta con todo)', 'https://drive.google.com/drive/folders/...'],
-                ] as const).map(([field, label, placeholder]) => (
-                  <div key={field} className={field === 'banner_url' ? 'md:col-span-2' : ''}>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">{label}</label>
-                    <input type="text" value={config[field] || ''} placeholder={placeholder}
-                      onChange={e => setConfig(c => ({ ...c, [field]: e.target.value }))}
-                      className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all" />
-                  </div>
-                ))}
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Fecha del Evento (para cuenta regresiva)</label>
-                  <input type="date" value={config.fecha_evento || '2027-01-15'}
-                    onChange={e => setConfig(c => ({ ...c, fecha_evento: e.target.value }))}
-                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all text-white" />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Auditores por tarea</label>
-                  <input type="number" min={1} max={5} value={config.auditores_por_tarea}
-                    onChange={e => setConfig(c => ({ ...c, auditores_por_tarea: parseInt(e.target.value) }))}
-                    className="w-20 bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none text-center" />
-                </div>
-                <button onClick={saveConfig} disabled={savingConfig}
-                  className="mt-5 bg-neutral-800 hover:bg-neutral-700 text-white font-bold py-2 px-5 rounded-xl text-sm flex items-center gap-2 transition-colors border border-white/10">
-                  <Save size={14} /> {savingConfig ? 'Guardando...' : 'Guardar Config'}
-                </button>
-              </div>
             </div>
 
-            {/* Nueva Tarea */}
-            <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6">
-              <h2 className="font-black text-base mb-4">Nueva Tarea Diaria</h2>
-              <div className="flex flex-col gap-3">
-                <div className="flex gap-3 flex-wrap">
-                  <input type="text" value={newTask.titulo} onChange={e => setNewTask(t => ({ ...t, titulo: e.target.value }))}
-                    placeholder={`Tarea del día ${formatDate(TODAY)}`}
-                    className="flex-1 min-w-[200px] bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500/60 outline-none transition-all" />
-                  <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5">
-                    <span className="text-xs text-gray-500 font-semibold">Horas:</span>
-                    <input type="number" min={1} max={72} value={newTask.horas_duracion}
-                      onChange={e => setNewTask(t => ({ ...t, horas_duracion: parseInt(e.target.value) }))}
-                      className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Nueva Tarea */}
+              <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 h-fit">
+                <h2 className="font-black text-base mb-4">Nueva Tarea Diaria</h2>
+                <div className="flex flex-col gap-3">
+                  <div className="flex gap-3 flex-wrap">
+                    <input type="text" value={newTask.titulo} onChange={e => setNewTask(t => ({ ...t, titulo: e.target.value }))}
+                      placeholder={`Tarea del día ${formatDate(TODAY)}`}
+                      className="flex-1 min-w-[200px] bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500/60 outline-none transition-all" />
+                    <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5">
+                      <span className="text-xs text-gray-500 font-semibold">Horas:</span>
+                      <input type="number" min={1} max={72} value={newTask.horas_duracion}
+                        onChange={e => setNewTask(t => ({ ...t, horas_duracion: parseInt(e.target.value) }))}
+                        className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
+                    </div>
                   </div>
+                  <button onClick={crearTarea} disabled={creatingTask}
+                    className="self-end bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 font-black py-2.5 px-6 rounded-xl text-sm flex items-center gap-2 transition-all">
+                    {creatingTask
+                      ? <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Creando...</>
+                      : <><Plus size={15} />Crear y Asignar Revisiones</>
+                    }
+                  </button>
                 </div>
-                <button onClick={crearTarea} disabled={creatingTask}
-                  className="self-end bg-white text-neutral-900 hover:bg-gray-100 disabled:opacity-50 font-black py-2.5 px-6 rounded-xl text-sm flex items-center gap-2 transition-all">
-                  {creatingTask
-                    ? <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Creando...</>
-                    : <><Plus size={15} />Crear y Asignar Revisiones</>
-                  }
-                </button>
+              </div>
+
+              {/* Tareas Existentes */}
+              <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 h-fit">
+                <h2 className="font-black text-base mb-1">Misiones Existentes</h2>
+                <p className="text-gray-500 text-xs mb-4">Administra el tiempo de las tareas generadas</p>
+                
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  {tareas.map(t => (
+                    <div key={t.id} className="flex justify-between items-center bg-neutral-950 border border-white/5 p-3 rounded-xl hover:border-white/10 transition-colors">
+                      <div>
+                        <p className="font-bold text-sm flex items-center gap-2">
+                          {t.titulo}
+                          {t.activa && <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>}
+                        </p>
+                        <p className="text-gray-500 text-[10px] mt-0.5">Fecha: {formatDate(t.fecha_tarea || '')} — Duración total: {t.horas_duracion}h</p>
+                      </div>
+                      <button onClick={() => addHours(t.id, 12)}
+                        title="Añadir 12 horas a esta tarea"
+                        className="flex items-center gap-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                        <Clock size={12} /> + 12h
+                      </button>
+                    </div>
+                  ))}
+                  {tareas.length === 0 && <p className="text-center text-xs text-gray-500 py-4">No hay misiones creadas aún.</p>}
+                </div>
               </div>
             </div>
 
@@ -571,7 +644,12 @@ export default function AdminPanel() {
             <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6">
               <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
                 <div>
-                  <h2 className="font-black text-base">Mapa de Calor</h2>
+                  <h2 className="font-black text-base flex items-center gap-2">
+                    Mapa de Calor 
+                    <button onClick={loadHeatMap} className="text-gray-500 hover:text-white transition-colors" title="Refrescar mapa">
+                      <RefreshCw size={14} />
+                    </button>
+                  </h2>
                   <p className="text-gray-500 text-xs mt-0.5">Click en un círculo para modificar el estado manualmente</p>
                 </div>
                 {/* Filtros mapa */}
@@ -728,37 +806,6 @@ export default function AdminPanel() {
               )}
             </div>
 
-            {/* Lista tareas */}
-            <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-white/8"><h2 className="font-black text-base">Tareas Creadas</h2></div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-gray-500 text-xs border-b border-white/8 bg-neutral-950/50">
-                    <th className="px-6 py-3 text-left font-semibold">Título</th>
-                    <th className="px-6 py-3 text-left font-semibold">Fecha</th>
-                    <th className="px-6 py-3 text-left font-semibold">Horas</th>
-                    <th className="px-6 py-3 text-left font-semibold">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {tareas.map(t => (
-                    <tr key={t.id} className="hover:bg-neutral-800/20 transition-colors">
-                      <td className="px-6 py-3 font-medium">{t.titulo}</td>
-                      <td className="px-6 py-3 text-gray-400 font-mono text-xs">{formatDate(t.fecha_tarea)}</td>
-                      <td className="px-6 py-3 text-gray-400 font-mono">{t.horas_duracion}h</td>
-                      <td className="px-6 py-3">
-                        {t.activa
-                          ? <span className="bg-green-500/15 text-green-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-500/30">Activa</span>
-                          : <span className="bg-neutral-800 text-gray-500 text-[10px] font-bold px-2 py-0.5 rounded-full">Inactiva</span>}
-                      </td>
-                    </tr>
-                  ))}
-                  {tareas.length === 0 && (
-                    <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-600 text-xs">No hay tareas creadas.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
           </div>
         )}
 
@@ -801,7 +848,12 @@ export default function AdminPanel() {
               {/* Tabla día × promotor */}
               <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-white/8 flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="font-black text-base">Tráfico por Día</h2>
+                  <h2 className="font-black text-base flex items-center gap-2">
+                    Tráfico por Día
+                    <button onClick={loadMetrics} className="text-gray-500 hover:text-white transition-colors" title="Refrescar métricas">
+                      <RefreshCw size={14} />
+                    </button>
+                  </h2>
                   {/* Filtro tipo */}
                   <div className="flex gap-1 bg-neutral-950 border border-white/10 p-1 rounded-xl">
                     {(['visita', 'click_tm', 'click_gratis'] as TipoFiltro[]).map(t => (

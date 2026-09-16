@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Folder, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOut, Clock, Link as LinkIcon } from 'lucide-react';
+import { Copy, Folder, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOut, Clock, Link as LinkIcon, RefreshCw } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase, getCountdown, type Tarea, type Revision, type EstadoColor } from '../lib/supabase';
@@ -164,6 +164,10 @@ export default function PromoterDashboard() {
             <span className="text-gray-600 text-xs ml-2">/ {(user as any).nombre}</span>
           </div>
           <div className="flex gap-2">
+            <button onClick={loadDashboard}
+              className="bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors border border-white/8 text-gray-300 hover:text-white">
+              <RefreshCw size={12} /> Refrescar
+            </button>
             <button onClick={copyLink}
               className="bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors border border-white/8 text-white relative">
               <Copy size={12} /> {copied ? '✓ Copiado' : 'Mi Link'}
