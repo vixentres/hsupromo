@@ -465,12 +465,13 @@ export default function AdminPanel() {
                       ['nombre', 'Nombre'],
                       ['rut', 'RUT'],
                       ['correo', 'Correo'],
+                      ['telefono', 'Teléfono'],
                       ['clave', 'Contraseña'],
                       ['instagram', 'Instagram'],
                     ] as const).map(([field, label]) => (
                       <th key={field} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:text-white transition-colors"
-                        onClick={() => toggleSort(field)}>
-                        <span className="flex items-center gap-1">{label}<SortIcon field={field} /></span>
+                        onClick={() => toggleSort(field as keyof Promotor)}>
+                        <span className="flex items-center gap-1">{label}<SortIcon field={field as keyof Promotor} /></span>
                       </th>
                     ))}
                     <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:text-white" onClick={() => toggleSort('rol')}>
@@ -488,7 +489,7 @@ export default function AdminPanel() {
                     const ig = val('instagram');
                     return (
                       <tr key={p.id} className={`group transition-colors ${isDirty ? 'bg-blue-900/10' : 'hover:bg-neutral-800/20'}`}>
-                        {(['nombre', 'rut', 'correo', 'clave', 'instagram'] as const).map(field => (
+                        {(['nombre', 'rut', 'correo', 'telefono', 'clave', 'instagram'] as const).map(field => (
                           <td key={field} className="px-3 py-1.5">
                             <input type="text" value={val(field)} onChange={e => editCell(p.id, field, e.target.value)}
                               className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-900/80 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[90px] text-sm" />
@@ -507,11 +508,6 @@ export default function AdminPanel() {
                               title="Copiar link de referido"
                               className="text-[10px] font-bold text-gray-500 hover:text-green-400 bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
                               {copied === ig + 'ref' ? '✓ Copiado' : '🔗 Ref'}
-                            </button>
-                            <button onClick={() => copyLink(ig, 'login')}
-                              title="Copiar link de login"
-                              className="text-[10px] font-bold text-gray-500 hover:text-blue-400 bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
-                              {copied === ig + 'login' ? '✓ Copiado' : '🔐 Login'}
                             </button>
                           </div>
                         </td>
@@ -627,31 +623,6 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              {/* Tareas Existentes */}
-              <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 h-fit">
-                <h2 className="font-black text-base mb-1">Misiones Existentes</h2>
-                <p className="text-gray-500 text-xs mb-4">Administra el tiempo de las tareas generadas</p>
-                
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                  {tareas.map(t => (
-                    <div key={t.id} className="flex justify-between items-center bg-neutral-950 border border-white/5 p-3 rounded-xl hover:border-white/10 transition-colors">
-                      <div>
-                        <p className="font-bold text-sm flex items-center gap-2">
-                          {t.titulo}
-                          {t.activa && <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>}
-                        </p>
-                        <p className="text-gray-500 text-[10px] mt-0.5">Fecha: {formatDate(t.fecha_tarea || '')} — Duración total: {t.horas_duracion}h</p>
-                      </div>
-                      <button onClick={() => addHours(t.id, 12)}
-                        title="Añadir 12 horas a esta tarea"
-                        className="flex items-center gap-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-                        <Clock size={12} /> + 12h
-                      </button>
-                    </div>
-                  ))}
-                  {tareas.length === 0 && <p className="text-center text-xs text-gray-500 py-4">No hay misiones creadas aún.</p>}
-                </div>
-              </div>
             </div>
 
             {/* Mapa de Calor */}
@@ -694,15 +665,46 @@ export default function AdminPanel() {
 
               {/* DÍA SELECCIONADO (TOP) */}
               <div className="mb-8">
-                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${selectedHeatDate === TODAY ? 'bg-blue-400 animate-pulse' : 'bg-gray-400'}`} />
-                  {selectedHeatDate === TODAY ? 'Hoy' : 'Día seleccionado'} — {formatDate(selectedHeatDate)}
-                  {heatColorFilter !== 'todos' && (
-                    <span className="text-[10px] font-normal text-gray-600">
-                      ({getFilteredHeat().length} con estado {COLOR_META[heatColorFilter].label})
-                    </span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${selectedHeatDate === TODAY ? 'bg-blue-400 animate-pulse' : 'bg-gray-400'}`} />
+                    {selectedHeatDate === TODAY ? 'Hoy' : 'Día seleccionado'} — {formatDate(selectedHeatDate)}
+                    {(() => {
+                      const selTask = tareas.find(t => t.fecha_tarea === selectedHeatDate);
+                      if (selTask) return <span className="text-gray-500 ml-1">({selTask.titulo})</span>;
+                      return null;
+                    })()}
+                    {heatColorFilter !== 'todos' && (
+                      <span className="text-[10px] font-normal text-gray-600">
+                        ({getFilteredHeat().length} con estado {COLOR_META[heatColorFilter].label})
+                      </span>
+                    )}
+                  </h3>
+                  
+                  {/* Controles para añadir horas al día seleccionado */}
+                  {tareas.find(t => t.fecha_tarea === selectedHeatDate) && (
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number" 
+                        id={`hours_${selectedHeatDate}`}
+                        defaultValue={12}
+                        min={1} 
+                        className="w-16 bg-neutral-950 border border-white/10 rounded-lg px-2 py-1 text-xs text-center outline-none focus:border-blue-500/60 transition-colors text-white" 
+                        title="Cantidad de horas a añadir"
+                      />
+                      <button 
+                        onClick={() => {
+                          const val = parseInt((document.getElementById(`hours_${selectedHeatDate}`) as HTMLInputElement).value) || 0;
+                          const tId = tareas.find(t => t.fecha_tarea === selectedHeatDate)?.id;
+                          if (tId && val > 0) addHours(tId, val);
+                        }}
+                        className="bg-neutral-800 hover:bg-neutral-700 text-blue-400 font-bold px-3 py-1 text-xs rounded-lg transition-colors border border-blue-500/20 whitespace-nowrap flex items-center gap-1.5"
+                      >
+                        <Clock size={12} /> Añadir hora
+                      </button>
+                    </div>
                   )}
-                </h3>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>

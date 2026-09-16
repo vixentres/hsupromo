@@ -39,6 +39,7 @@ export interface Promotor {
   nombre: string;
   rut: string;
   correo: string;
+  telefono?: string;
   clave: string;
   instagram: string;
   rol: Rol;

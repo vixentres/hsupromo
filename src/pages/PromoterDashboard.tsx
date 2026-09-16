@@ -33,29 +33,54 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     if (!loading && !user) navigate('/promotor/login');
   }, [user, loading, navigate]);
 
+  const TODAY = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState<string>(TODAY);
+
   useEffect(() => {
-    if (user) loadDashboard();
-  }, [user]);
+    if (actualUser) {
+      loadInitialData();
+    }
+  }, [actualUser]);
+
+  useEffect(() => {
+    if (actualUser) {
+      loadTaskForDate(selectedDate);
+    }
+  }, [selectedDate, actualUser]);
 
   // Cuenta regresiva de la tarea
   useEffect(() => {
     if (!tarea) return;
-    const deadline = new Date(new Date(tarea.created_at!).getTime() + tarea.horas_duracion * 3600000);
+    const deadline = new Date(new Date(tarea.created_at!).getTime() + (tarea.horas_duracion || 24) * 3600000);
     const tick = () => setCountdown(getCountdown(deadline));
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [tarea]);
 
-  const loadDashboard = async () => {
-    setLoadingData(true);
-    const today = new Date().toISOString().split('T')[0];
-
+  const loadInitialData = async () => {
     const { data: cfg } = await supabase.from('config').select('material_nuevo_url').eq('id', 1).single();
     if (cfg) setMaterialUrl(cfg.material_nuevo_url || '');
 
+    if (actualUser) {
+      const uid = (actualUser as any).id;
+      const { data: hist } = await supabase
+        .from('revisiones')
+        .select('submission_status, admin_override, tareas!inner(fecha_tarea, activa)')
+        .eq('promotor_id', uid)
+        .eq('auditor_id', uid)
+        .order('tareas(fecha_tarea)', { ascending: true });
+      
+      setHistory(hist || []);
+    }
+  };
+
+  const loadTaskForDate = async (date: string) => {
+    setLoadingData(true);
+    
+    // Aquí ignoramos "activa: true" para poder ver tareas pasadas
     const { data: tareaData } = await supabase
-      .from('tareas').select('*').eq('activa', true).eq('fecha_tarea', today)
+      .from('tareas').select('*').eq('fecha_tarea', date)
       .order('created_at', { ascending: false }).limit(1).maybeSingle();
 
     setTarea(tareaData);
@@ -103,22 +128,19 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         .eq('promotor_id', uid)
         .neq('auditor_id', uid);
       setIncomingAudits(incAud || []);
-    }
-
-    if (actualUser) {
-      // Fetch historial del usuario
-      const uid = (actualUser as any).id;
-      const { data: hist } = await supabase
-        .from('revisiones')
-        .select('submission_status, admin_override, tareas!inner(fecha_tarea, activa)')
-        .eq('promotor_id', uid)
-        .eq('auditor_id', uid)
-        .order('tareas(fecha_tarea)', { ascending: true });
-      
-      setHistory(hist || []);
+    } else {
+      setRevision(null);
+      setAsignados([]);
+      setIncomingAudits([]);
     }
 
     setLoadingData(false);
+  };
+
+  const loadDashboard = async () => {
+    // Para recargar datos manualmente
+    await loadInitialData();
+    await loadTaskForDate(selectedDate);
   };
 
   const myStatus: EstadoColor = revision?.admin_override || revision?.submission_status || 'rojo';
@@ -420,16 +442,16 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                       const dateLabel = dateObj.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
 
                       return (
-                        <div key={i} className="flex flex-col items-center gap-2">
+                        <button key={i} onClick={() => h.tareas?.fecha_tarea && setSelectedDate(h.tareas.fecha_tarea)} className="flex flex-col items-center gap-2 group outline-none">
                           <div title={`Día: ${dateLabel} | Estado: ${st}`} 
-                               className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 ${colorClass} ${isTodayTask ? 'ring-4 ring-white/20 ring-offset-2 ring-offset-neutral-900' : 'opacity-80'}`}>
+                               className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${colorClass} ${h.tareas?.fecha_tarea === selectedDate ? 'ring-4 ring-white ring-offset-2 ring-offset-neutral-900 scale-110' : 'opacity-60 group-hover:opacity-100'}`}>
                             {st === 'verde' && <ShieldCheck size={16} className="text-green-900" />}
                             {st === 'morado' && <span className="text-[10px] font-black text-purple-900">PRO</span>}
                             {st === 'rojo' && <span className="text-[10px] font-black text-red-900">X</span>}
                             {st === 'amarillo' && <span className="text-[10px] font-black text-yellow-900">...</span>}
                           </div>
-                          <span className="text-[10px] text-gray-500 font-semibold">{dateLabel}</span>
-                        </div>
+                          <span className={`text-[10px] font-semibold ${h.tareas?.fecha_tarea === selectedDate ? 'text-white' : 'text-gray-500'}`}>{dateLabel}</span>
+                        </button>
                       );
                     })}
                   </div>
