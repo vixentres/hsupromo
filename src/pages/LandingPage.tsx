@@ -1,27 +1,124 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { supabase, transformDriveUrl, type Config } from '../lib/supabase';
+
+const DEFAULT_CONFIG: Config = {
+  id: 1,
+  banner_url: '',
+  material_nuevo_url: '',
+  material_historico_url: '',
+  auditores_por_tarea: 2,
+  ticketmaster_url: '',
+  entradas_gratis_url: '',
+};
 
 export default function LandingPage() {
+  const [searchParams] = useSearchParams();
+  const ref = searchParams.get('ref') || '';
+  const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadConfig();
+  }, []);
+
+  // Registrar visita silenciosamente cuando hay ref, sin mostrarlo al cliente
+  useEffect(() => {
+    if (!ref) return;
+    registerMetric('visita');
+  }, [ref]);
+
+  const loadConfig = async () => {
+    const { data } = await supabase.from('config').select('*').eq('id', 1).single();
+    if (data) setConfig(data);
+    setLoading(false);
+  };
+
+  const registerMetric = async (tipo: string) => {
+    if (!ref) return;
+    // Buscar el promotor por instagram handle
+    const { data: promotor } = await supabase
+      .from('promotores')
+      .select('id')
+      .eq('instagram', ref)
+      .maybeSingle();
+
+    if (!promotor) return;
+    await supabase.from('metricas').insert([{ promotor_id: promotor.id, tipo_accion: tipo }]);
+  };
+
+  const handleCTA = async (tipo: 'click_tm' | 'click_gratis', url: string) => {
+    await registerMetric(tipo);
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const bannerUrl = transformDriveUrl(config.banner_url);
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-neutral-900 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-        <div className="h-64 bg-neutral-800 flex items-center justify-center relative">
-          <p className="text-neutral-500 font-bold uppercase tracking-widest text-sm">Banner Oficial</p>
-          <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-mono text-gray-300">
-            ?ref=promotor1
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-neutral-950">
+      <div className="w-full max-w-sm">
+        {/* Card principal */}
+        <div className="bg-neutral-900 border border-white/8 rounded-3xl overflow-hidden shadow-2xl">
+
+          {/* Banner */}
+          <div className="relative aspect-[4/3] bg-neutral-800 overflow-hidden">
+            {loading ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+              </div>
+            ) : bannerUrl ? (
+              <img
+                src={bannerUrl}
+                alt="Banner del evento"
+                className="w-full h-full object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+                  </svg>
+                </div>
+                <p className="text-gray-600 text-xs font-medium">Banner del evento</p>
+              </div>
+            )}
+          </div>
+
+          {/* Contenido */}
+          <div className="p-6 space-y-3">
+            <h2 className="text-xl font-black text-center tracking-tight">Próximo Evento</h2>
+
+            {/* Botón Ticketmaster */}
+            <button
+              onClick={() => handleCTA('click_tm', config.ticketmaster_url)}
+              disabled={!config.ticketmaster_url}
+              className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-900/30 flex items-center justify-center gap-2 text-sm"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 12V6H4v6a2 2 0 0 0 0 4v6h16v-6a2 2 0 0 0 0-4z"/>
+              </svg>
+              Comprar en Ticketmaster
+            </button>
+
+            {/* Botón Entradas sin cargo */}
+            <button
+              onClick={() => handleCTA('click_gratis', config.entradas_gratis_url)}
+              disabled={!config.entradas_gratis_url}
+              className="w-full bg-white hover:bg-gray-100 active:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-neutral-900 font-bold py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 text-sm"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                <path d="m9 12 2 2 4-4"/>
+              </svg>
+              Entradas sin cargo
+            </button>
           </div>
         </div>
-        
-        <div className="p-8 space-y-4">
-          <h2 className="text-2xl font-black text-center mb-6">Próximo Evento</h2>
-          
-          <button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
-            Comprar en Ticketmaster
-          </button>
-          
-          <button className="w-full bg-white hover:bg-gray-100 text-black font-bold py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
-            Entradas sin cargo
-          </button>
-        </div>
+
+        <p className="text-center text-xs text-gray-700 mt-6">
+          Sistema de gestión de promotores HSU
+        </p>
       </div>
     </div>
   );

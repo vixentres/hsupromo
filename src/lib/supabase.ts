@@ -5,7 +5,17 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// ── Tipos ────────────────────────────────────────────────────
+// ── Helper: convierte URL de Google Drive a URL renderizable ─────────────────
+export const transformDriveUrl = (url: string): string => {
+  if (!url || typeof url !== 'string') return url;
+  if (url.includes('drive.google.com')) {
+    const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (match?.[1]) return `https://lh3.googleusercontent.com/u/0/d/${match[1]}`;
+  }
+  return url;
+};
+
+// ── Tipos ────────────────────────────────────────────────────────────────────
 export type Rol = 'promotor' | 'admin';
 export type EstadoColor = 'rojo' | 'amarillo' | 'verde' | 'morado' | 'naranja';
 export type VotoAuditoria = 'SI' | 'NO' | 'JUSTIFICADO' | 'PENDIENTE';
@@ -49,4 +59,6 @@ export interface Config {
   material_nuevo_url: string;
   material_historico_url: string;
   auditores_por_tarea: number;
+  ticketmaster_url: string;
+  entradas_gratis_url: string;
 }
