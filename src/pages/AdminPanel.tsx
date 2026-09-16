@@ -72,8 +72,9 @@ function Leyenda() {
 
 // ─── DEFAULT CONFIG ───────────────────────────────────────────────────────────
 const DEFAULT_CONFIG: Config = {
-  id: 1, banner_url: '', material_nuevo_url: '', material_historico_url: '',
+  id: 1, banner_url: '', material_nuevo_url: '',
   auditores_por_tarea: 2, ticketmaster_url: '', entradas_gratis_url: '',
+  fecha_evento: '2027-01-15',
 };
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
@@ -93,7 +94,7 @@ export default function AdminPanel() {
 
   // ── Tareas ────────────────────────────────────────────────────────────────
   const [tareas, setTareas] = useState<Tarea[]>([]);
-  const [newTask, setNewTask] = useState({ titulo: '', horas_duracion: 24, material_nuevo: '', material_historico: '' });
+  const [newTask, setNewTask] = useState({ titulo: '', horas_duracion: 24, material_nuevo: '' });
   const [creatingTask, setCreatingTask] = useState(false);
 
   // ── Config ────────────────────────────────────────────────────────────────
@@ -271,7 +272,7 @@ export default function AdminPanel() {
 
     await supabase.from('revisiones').insert([...selfRows, ...auditRows]);
 
-    setNewTask({ titulo: '', horas_duracion: 24, material_nuevo: '', material_historico: '' });
+    setNewTask({ titulo: '', horas_duracion: 24, material_nuevo: '' });
     await Promise.all([loadTareas(), loadHeatMap()]);
     setCreatingTask(false);
     alert(`"${titulo}" creada y asignada a ${proms.length} promotores ✓`);
@@ -483,8 +484,7 @@ export default function AdminPanel() {
                   ['banner_url', 'URL Banner (Drive o directa)', 'https://drive.google.com/file/d/.../view'],
                   ['ticketmaster_url', 'URL Botón "Comprar en Ticketmaster"', 'https://www.ticketmaster.cl/...'],
                   ['entradas_gratis_url', 'URL Botón "Entradas sin cargo"', 'https://...'],
-                  ['material_nuevo_url', 'URL Material Nuevo (Drive carpeta)', 'https://drive.google.com/drive/folders/...'],
-                  ['material_historico_url', 'URL Material Histórico (Drive carpeta)', 'https://drive.google.com/drive/folders/...'],
+                  ['material_nuevo_url', 'URL Material RRSS (Drive — carpeta con todo)', 'https://drive.google.com/drive/folders/...'],
                 ] as const).map(([field, label, placeholder]) => (
                   <div key={field} className={field === 'banner_url' ? 'md:col-span-2' : ''}>
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">{label}</label>
@@ -493,6 +493,12 @@ export default function AdminPanel() {
                       className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all" />
                   </div>
                 ))}
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Fecha del Evento (para cuenta regresiva)</label>
+                  <input type="date" value={config.fecha_evento || '2027-01-15'}
+                    onChange={e => setConfig(c => ({ ...c, fecha_evento: e.target.value }))}
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all text-white" />
+                </div>
               </div>
 
               <div className="flex items-center gap-4">
@@ -698,49 +704,155 @@ export default function AdminPanel() {
         )}
 
         {/* ══ TAB ANALÍTICAS ════════════════════════════════════════════════ */}
-        {activeTab === 'stats' && (
-          <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-white/8"><h2 className="font-black text-lg">Tráfico de Enlaces</h2></div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 text-xs border-b border-white/8 bg-neutral-950/50">
-                  <th className="px-6 py-3 text-left font-semibold">Promotor</th>
-                  <th className="px-6 py-3 text-right font-semibold">Visitas</th>
-                  <th className="px-6 py-3 text-right font-semibold">Clicks Ticketmaster</th>
-                  <th className="px-6 py-3 text-right font-semibold">Clicks Entradas s/c</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {(() => {
-                  const grouped: Record<string, any> = {};
-                  metrics.forEach(m => {
-                    const pid = m.promotor_id;
-                    if (!grouped[pid]) grouped[pid] = { promotor: m.promotores, visitas: 0, tm: 0, gratis: 0 };
-                    if (m.tipo_accion === 'visita') grouped[pid].visitas++;
-                    if (m.tipo_accion === 'click_tm') grouped[pid].tm++;
-                    if (m.tipo_accion === 'click_gratis') grouped[pid].gratis++;
-                  });
-                  const rows = Object.values(grouped).sort((a: any, b: any) => b.visitas - a.visitas);
-                  if (!rows.length) return (
-                    <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-600 text-xs">Sin datos de tráfico aún.</td></tr>
-                  );
-                  return rows.map((r: any, idx) => (
-                    <tr key={idx} className="hover:bg-neutral-800/20 transition-colors">
-                      <td className="px-6 py-3 font-semibold flex items-center gap-2">
-                        <a href={`https://www.instagram.com/${r.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
-                          className="hover:text-blue-400 transition-colors">{r.promotor?.nombre}</a>
-                        {idx === 0 && <span className="bg-yellow-500/20 text-yellow-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-yellow-500/30">🏆 Top 1</span>}
-                      </td>
-                      <td className="px-6 py-3 text-right font-mono">{r.visitas}</td>
-                      <td className="px-6 py-3 text-right font-mono text-green-400">{r.tm}</td>
-                      <td className="px-6 py-3 text-right font-mono text-blue-400">{r.gratis}</td>
+        {activeTab === 'stats' && (() => {
+          // Tipos de acción disponibles
+          type TipoFiltro = 'visita' | 'click_tm' | 'click_gratis';
+          const [tipoFiltro, setTipoFiltro] = React.useState<TipoFiltro>('visita');
+
+          // Obtener fechas únicas de métricas
+          const metricDates = [...new Set(metrics.map((m: any) =>
+            new Date(m.created_at).toISOString().split('T')[0]
+          ))].sort() as string[];
+
+          // Agrupar: { promotor_id → { fecha → count } }
+          const grouped: Record<string, any> = {};
+          metrics.forEach((m: any) => {
+            const pid = m.promotor_id;
+            const fecha = new Date(m.created_at).toISOString().split('T')[0];
+            if (!grouped[pid]) grouped[pid] = { promotor: m.promotores, byDate: {}, total: { visita: 0, click_tm: 0, click_gratis: 0 } };
+            if (!grouped[pid].byDate[fecha]) grouped[pid].byDate[fecha] = { visita: 0, click_tm: 0, click_gratis: 0 };
+            if (m.tipo_accion in grouped[pid].byDate[fecha]) grouped[pid].byDate[fecha][m.tipo_accion]++;
+            if (m.tipo_accion in grouped[pid].total) grouped[pid].total[m.tipo_accion]++;
+          });
+
+          const rows = Object.values(grouped).sort((a: any, b: any) => b.total[tipoFiltro] - a.total[tipoFiltro]);
+
+          const tipoLabel: Record<TipoFiltro, string> = {
+            visita: 'Visitas',
+            click_tm: 'Clicks Ticketmaster',
+            click_gratis: 'Clicks Entradas s/c',
+          };
+          const tipoColor: Record<TipoFiltro, string> = {
+            visita: 'text-white',
+            click_tm: 'text-green-400',
+            click_gratis: 'text-blue-400',
+          };
+
+          return (
+            <div className="space-y-6">
+              {/* Tabla día × promotor */}
+              <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/8 flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="font-black text-base">Tráfico por Día</h2>
+                  {/* Filtro tipo */}
+                  <div className="flex gap-1 bg-neutral-950 border border-white/10 p-1 rounded-xl">
+                    {(['visita', 'click_tm', 'click_gratis'] as TipoFiltro[]).map(t => (
+                      <button key={t} onClick={() => setTipoFiltro(t)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${tipoFiltro === t ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
+                        {tipoLabel[t]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="text-sm">
+                    <thead>
+                      <tr className="text-gray-500 text-xs border-b border-white/8 bg-neutral-950/50">
+                        <th className="px-5 py-3 text-left font-semibold sticky left-0 bg-neutral-950/50 min-w-[150px]">Promotor</th>
+                        {metricDates.map(d => (
+                          <th key={d} className="px-4 py-3 text-center font-semibold min-w-[80px]">{formatDate(d)}</th>
+                        ))}
+                        <th className="px-4 py-3 text-right font-semibold">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {rows.length === 0 ? (
+                        <tr><td colSpan={metricDates.length + 2} className="px-6 py-8 text-center text-gray-600 text-xs">Sin datos aún.</td></tr>
+                      ) : rows.map((r: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-neutral-800/20 transition-colors">
+                          <td className="px-5 py-3 font-semibold sticky left-0 bg-neutral-900">
+                            <a href={`https://www.instagram.com/${r.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                              className="hover:text-blue-400 transition-colors flex items-center gap-1.5">
+                              {r.promotor?.nombre}
+                              {idx === 0 && <span className="text-yellow-400 text-[10px]">🏆</span>}
+                            </a>
+                          </td>
+                          {metricDates.map(d => {
+                            const val = r.byDate[d]?.[tipoFiltro] || 0;
+                            return (
+                              <td key={d} className={`px-4 py-3 text-center font-mono ${val > 0 ? tipoColor[tipoFiltro] : 'text-gray-700'}`}>
+                                {val > 0 ? val : '—'}
+                              </td>
+                            );
+                          })}
+                          <td className={`px-4 py-3 text-right font-mono font-bold ${tipoColor[tipoFiltro]}`}>
+                            {r.total[tipoFiltro]}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {/* Totales por columna */}
+                    {rows.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t border-white/15 bg-neutral-950/50 text-xs font-bold text-gray-400">
+                          <td className="px-5 py-3 sticky left-0 bg-neutral-950/50">TOTAL</td>
+                          {metricDates.map(d => {
+                            const total = rows.reduce((sum: number, r: any) => sum + (r.byDate[d]?.[tipoFiltro] || 0), 0);
+                            return <td key={d} className={`px-4 py-3 text-center font-mono ${tipoColor[tipoFiltro]}`}>{total || '—'}</td>;
+                          })}
+                          <td className={`px-4 py-3 text-right font-mono ${tipoColor[tipoFiltro]}`}>
+                            {rows.reduce((sum: number, r: any) => sum + r.total[tipoFiltro], 0)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </div>
+
+              {/* Tabla resumen totalizado */}
+              <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/8">
+                  <h2 className="font-black text-base">Resumen General</h2>
+                  <p className="text-gray-500 text-xs mt-0.5">Totales acumulados por promotor</p>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-gray-500 text-xs border-b border-white/8 bg-neutral-950/50">
+                      <th className="px-6 py-3 text-left font-semibold">Promotor</th>
+                      <th className="px-6 py-3 text-right font-semibold">Visitas</th>
+                      <th className="px-6 py-3 text-right font-semibold">Ticketmaster</th>
+                      <th className="px-6 py-3 text-right font-semibold">Entradas s/c</th>
+                      <th className="px-6 py-3 text-right font-semibold">Conv. TM %</th>
                     </tr>
-                  ));
-                })()}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {rows.length === 0 ? (
+                      <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-600 text-xs">Sin datos aún.</td></tr>
+                    ) : rows.sort((a: any, b: any) => b.total.visita - a.total.visita).map((r: any, idx: number) => {
+                      const conv = r.total.visita > 0 ? ((r.total.click_tm / r.total.visita) * 100).toFixed(1) : '0.0';
+                      return (
+                        <tr key={idx} className="hover:bg-neutral-800/20 transition-colors">
+                          <td className="px-6 py-3 font-semibold flex items-center gap-2">
+                            <a href={`https://www.instagram.com/${r.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                              className="hover:text-blue-400 transition-colors">{r.promotor?.nombre}</a>
+                            {idx === 0 && <span className="bg-yellow-500/20 text-yellow-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-yellow-500/30">🏆 Top</span>}
+                          </td>
+                          <td className="px-6 py-3 text-right font-mono">{r.total.visita}</td>
+                          <td className="px-6 py-3 text-right font-mono text-green-400">{r.total.click_tm}</td>
+                          <td className="px-6 py-3 text-right font-mono text-blue-400">{r.total.click_gratis}</td>
+                          <td className={`px-6 py-3 text-right font-mono font-bold ${parseFloat(conv) >= 10 ? 'text-green-400' : parseFloat(conv) >= 5 ? 'text-yellow-400' : 'text-gray-500'}`}>
+                            {conv}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

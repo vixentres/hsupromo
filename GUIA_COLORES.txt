@@ -1,0 +1,149 @@
+======================================================
+  GUÍA DE COLORES — SISTEMA DE AUDITORÍA HSU PROMOTORES
+======================================================
+Versión: 1.0 | Septiembre 2026
+
+Este documento explica qué significa cada color en el
+Mapa de Calor del panel de administración.
+
+------------------------------------------------------
+🔴 ROJO — Incumplimiento / Pendiente
+------------------------------------------------------
+¿Cuándo aparece?
+  • El promotor NO subió la publicación requerida a sus
+    Stories de Instagram antes del plazo.
+  • El promotor marcó "Ya lo subí" PERO sus auditores
+    confirmaron que NO está en el Instagram (votaron NO).
+  • El tiempo de la tarea expiró y el promotor nunca
+    actualizó su estado.
+
+Consecuencias:
+  • Queda registrado como incumplimiento en el historial.
+  • El admin puede tomar medidas disciplinarias.
+
+Nota: Un promotor que empieza en rojo puede avanzar a
+  amarillo si publica ANTES de que expire el plazo.
+
+------------------------------------------------------
+🟡 AMARILLO — En Revisión Cruzada
+------------------------------------------------------
+¿Cuándo aparece?
+  • El promotor hizo clic en "Ya lo subí a mis Stories",
+    indicando que completó la publicación.
+  • Sus auditores asignados AÚN no han votado para
+    confirmar o negar la publicación.
+
+Qué esperar:
+  • El promotor debe esperar a que sus compañeros
+    auditores revisen su perfil/stories de Instagram
+    y emitan su voto (SÍ / NO / Justificado).
+  • Si los auditores votan SÍ → pasa a VERDE.
+  • Si los auditores votan NO → cae a ROJO (castigo).
+
+------------------------------------------------------
+🟢 VERDE — Misión Cumplida y Verificada
+------------------------------------------------------
+¿Cuándo aparece?
+  • El promotor publicó en sus Stories.
+  • Sus auditores asignados verificaron que la publicación
+    estaba visible en Instagram y votaron SÍ.
+
+Significado:
+  • El promotor cumplió correctamente con la misión del día.
+  • Este es el estado ideal que todos deben alcanzar.
+
+------------------------------------------------------
+🟣 MORADO — Auditor Leal (Honesto bajo presión)
+------------------------------------------------------
+¿Cuándo aparece?
+  • El promotor SÍ cumplió con su publicación.
+  • Pero le tocó auditar a alguien que NO publicó.
+  • El promotor fue honesto y votó NO (no mintió).
+
+Por qué se premia:
+  • Votar NO a un compañero es difícil (pueden existir
+    presiones sociales para mentir y votar SÍ).
+  • El color morado reconoce a quienes mantienen la
+    integridad del sistema.
+  • No se aplica penalización al promotor morado.
+
+Contraste con el caso de deshonestidad:
+  • Si un auditor vota SÍ cuando el compañero no publicó,
+    AMBOS quedan en rojo. El auditor que mintió pierde
+    su protección y es castigado también.
+
+------------------------------------------------------
+🟠 NARANJA — Justificado
+------------------------------------------------------
+¿Cuándo aparece?
+  • El admin aplica este estado manualmente desde el
+    mapa de calor.
+  • Se usa cuando existe una razón válida y comprobable
+    por la que el promotor no pudo cumplir (enfermedad,
+    fuerza mayor, ausencia previamente avisada, etc.).
+
+Significado:
+  • No se aplica penalización.
+  • El caso queda registrado para referencia histórica.
+  • Solo el administrador puede asignar este color.
+
+------------------------------------------------------
+  RESUMEN DE QUIÉN PUEDE MODIFICAR CADA COLOR
+------------------------------------------------------
+  • Sistema automático calcula: rojo, amarillo, verde, morado
+  • Admin puede override MANUAL a cualquier color desde
+    el mapa de calor (click en el círculo de color).
+  • El override del admin solo es visible en el panel de
+    administración. El promotor siempre ve su estado real.
+
+------------------------------------------------------
+  FLUJO COMPLETO DE UNA TAREA (RESUMEN)
+------------------------------------------------------
+
+1. Admin crea tarea → todos quedan en ROJO.
+2. Promotor publica en Stories → hace clic "Ya lo subí"
+   → pasa a AMARILLO.
+3. Sus auditores asignados revisan el Instagram:
+   • Voto SÍ (publicó correctamente) → promotor pasa a VERDE
+   • Voto NO (no publicó o ya expiró) → promotor queda ROJO
+   • Voto JUSTIFICADO → admin decide el resultado final
+4. Auditor que votó NO a alguien que realmente no publicó
+   → auditor queda MORADO (leal y honesto).
+5. Auditor que votó SÍ mintiendo (compañero no publicó)
+   → ambos quedan en ROJO.
+
+------------------------------------------------------
+  ESTADOS DE PRUEBA ACTUALES (SEPTIEMBRE 2026)
+------------------------------------------------------
+  • Juan Pérez         🔴 Rojo      → No realizó la tarea
+  • María González     🟢 Verde     → Cumplió y fue auditada correctamente
+  • Pedro Sánchez      🟡 Amarillo  → Marcó publicado, esperando auditores
+  • Promotor Uno       🟣 Morado    → Hizo su tarea, auditó honestamente a Juan (votó NO)
+  • Carlos López       🟠 Naranja   → Caso justificado por el admin
+  • Ana Torres         🔴 Rojo      → No publicó, su auditor (Carlos) mintió votando SÍ
+
+------------------------------------------------------
+  PREGUNTAS FRECUENTES
+------------------------------------------------------
+
+P: ¿Puede un promotor ver el color que el admin puso manualmente?
+R: No. El admin override solo afecta el mapa de calor del
+   admin. El promotor siempre ve su estado real calculado
+   por el sistema.
+
+P: ¿Cuánto tiempo tiene un promotor para publicar?
+R: El tiempo configurado en la tarea (por defecto 24 horas).
+   La cuenta regresiva es visible en el dashboard del promotor.
+
+P: ¿Qué pasa si los auditores no votan antes del plazo?
+R: El promotor permanece en amarillo. El admin puede resolver
+   el caso manualmente usando el override de color.
+
+P: ¿Puedo cambiar el número de auditores por tarea?
+R: Sí. En Admin Hub → Gestor de Tareas → Configuración Global,
+   ajusta el campo "Auditores por tarea" (entre 1 y 5).
+
+======================================================
+  HSU PROMO SYSTEM — DOCUMENTACIÓN INTERNA
+  https://hsu-promo.vercel.app
+======================================================

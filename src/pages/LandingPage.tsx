@@ -1,15 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase, transformDriveUrl, type Config } from '../lib/supabase';
+import { supabase, transformDriveUrl, getCountdown, type Config } from '../lib/supabase';
 
 const DEFAULT_CONFIG: Config = {
-  id: 1,
-  banner_url: '',
-  material_nuevo_url: '',
-  material_historico_url: '',
-  auditores_por_tarea: 2,
-  ticketmaster_url: '',
-  entradas_gratis_url: '',
+  id: 1, banner_url: '', material_nuevo_url: '',
+  auditores_por_tarea: 2, ticketmaster_url: '', entradas_gratis_url: '',
+  fecha_evento: '2027-01-15',
 };
 
 export default function LandingPage() {
@@ -17,16 +13,24 @@ export default function LandingPage() {
   const ref = searchParams.get('ref') || '';
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
+  const [countdown, setCountdown] = useState('');
 
-  useEffect(() => {
-    loadConfig();
-  }, []);
+  useEffect(() => { loadConfig(); }, []);
 
-  // Registrar visita silenciosamente cuando hay ref, sin mostrarlo al cliente
   useEffect(() => {
     if (!ref) return;
     registerMetric('visita');
   }, [ref]);
+
+  // Ticker de cuenta regresiva al evento
+  useEffect(() => {
+    if (!config.fecha_evento) return;
+    const target = new Date(config.fecha_evento + 'T21:00:00'); // asumir las 21:00 como hora del evento
+    const tick = () => setCountdown(getCountdown(target));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [config.fecha_evento]);
 
   const loadConfig = async () => {
     const { data } = await supabase.from('config').select('*').eq('id', 1).single();
@@ -36,78 +40,81 @@ export default function LandingPage() {
 
   const registerMetric = async (tipo: string) => {
     if (!ref) return;
-    // Buscar el promotor por instagram handle
     const { data: promotor } = await supabase
-      .from('promotores')
-      .select('id')
-      .eq('instagram', ref)
-      .maybeSingle();
-
+      .from('promotores').select('id').eq('instagram', ref).maybeSingle();
     if (!promotor) return;
     await supabase.from('metricas').insert([{ promotor_id: promotor.id, tipo_accion: tipo }]);
   };
 
-  const handleCTA = async (tipo: 'click_tm' | 'click_gratis', url: string) => {
-    await registerMetric(tipo);
+  // Abrir ANTES del await para evitar que el bloqueador de popups lo bloquee
+  const handleCTA = (tipo: 'click_tm' | 'click_gratis', url: string) => {
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    registerMetric(tipo); // fire & forget
   };
 
   const bannerUrl = transformDriveUrl(config.banner_url);
 
+  // Formatear fecha del evento legible
+  const fechaEvento = config.fecha_evento
+    ? new Date(config.fecha_evento + 'T12:00:00').toLocaleDateString('es-CL', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      })
+    : '';
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-neutral-950">
       <div className="w-full max-w-sm">
-        {/* Card principal */}
         <div className="bg-neutral-900 border border-white/8 rounded-3xl overflow-hidden shadow-2xl">
 
-          {/* Banner */}
-          <div className="relative aspect-[4/3] bg-neutral-800 overflow-hidden">
+          {/* Banner — tamaño completo, sin recorte */}
+          <div className="relative w-full bg-neutral-800">
             {loading ? (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-48 flex items-center justify-center">
                 <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
               </div>
             ) : bannerUrl ? (
               <img
                 src={bannerUrl}
                 alt="Banner del evento"
-                className="w-full h-full object-cover"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                className="w-full h-auto block"
+                style={{ maxHeight: '480px', objectFit: 'contain' }}
               />
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-600">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
-                  </svg>
-                </div>
-                <p className="text-gray-600 text-xs font-medium">Banner del evento</p>
+              <div className="h-48 flex flex-col items-center justify-center gap-2 border-b border-white/8">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-700">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+                </svg>
+                <p className="text-gray-600 text-xs">Banner del evento</p>
               </div>
             )}
           </div>
 
-          {/* Contenido */}
-          <div className="p-6 space-y-3">
-            <h2 className="text-xl font-black text-center tracking-tight">Próximo Evento</h2>
+          {/* Cuenta regresiva al evento */}
+          <div className="px-6 pt-5 pb-2 text-center border-b border-white/5">
+            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-1">Faltan</p>
+            <p className="text-2xl font-black font-mono tracking-tight text-white">{countdown || '...'}</p>
+            <p className="text-gray-600 text-[11px] mt-0.5">{fechaEvento}</p>
+          </div>
 
-            {/* Botón Ticketmaster */}
+          {/* CTAs */}
+          <div className="p-6 space-y-3">
             <button
               onClick={() => handleCTA('click_tm', config.ticketmaster_url)}
               disabled={!config.ticketmaster_url}
-              className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-900/30 flex items-center justify-center gap-2 text-sm"
+              className="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 text-sm"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
                 <path d="M20 12V6H4v6a2 2 0 0 0 0 4v6h16v-6a2 2 0 0 0 0-4z"/>
               </svg>
               Comprar en Ticketmaster
             </button>
 
-            {/* Botón Entradas sin cargo */}
             <button
               onClick={() => handleCTA('click_gratis', config.entradas_gratis_url)}
               disabled={!config.entradas_gratis_url}
-              className="w-full bg-white hover:bg-gray-100 active:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-neutral-900 font-bold py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 text-sm"
+              className="w-full bg-white hover:bg-gray-100 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-neutral-900 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
                 <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
                 <path d="m9 12 2 2 4-4"/>
               </svg>
@@ -116,7 +123,7 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-700 mt-6">
+        <p className="text-center text-xs text-gray-700 mt-5">
           Sistema de gestión de promotores HSU
         </p>
       </div>
