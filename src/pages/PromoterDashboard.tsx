@@ -48,11 +48,25 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     }
   }, [selectedDate, actualUser]);
 
-  // Cuenta regresiva de la tarea
+  const [revCountdown, setRevCountdown] = useState<string>('');
+
+  // Cuenta regresiva de la tarea y revisión
   useEffect(() => {
     if (!tarea) return;
-    const deadline = new Date(new Date(tarea.created_at!).getTime() + (tarea.horas_duracion || 24) * 3600000);
-    const tick = () => setCountdown(getCountdown(deadline));
+    const created = new Date(tarea.created_at || tarea.fecha_tarea + 'T10:00:00Z');
+    const deadline = new Date(created.getTime() + (tarea.horas_duracion || 24) * 3600000);
+    const revHours = tarea.horas_revision || 0;
+    const revDeadline = revHours > 0 ? new Date(deadline.getTime() - revHours * 3600000) : null;
+
+    const tick = () => {
+      setCountdown(getCountdown(deadline));
+      if (revDeadline) {
+        const rd = getCountdown(revDeadline);
+        setRevCountdown(rd === 'Expirado' ? 'Cerrado' : rd);
+      } else {
+        setRevCountdown('');
+      }
+    };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
@@ -143,12 +157,18 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     await loadTaskForDate(selectedDate);
   };
 
-  const myStatus: EstadoColor = revision?.admin_override || revision?.submission_status || 'rojo';
-  const isPublished = myStatus !== 'rojo';
+  const allAuditsSI = incomingAudits.length > 0 && incomingAudits.every((a: any) => a.voto === 'SI');
+  const rawStatus = (revision?.submission_status || 'rojo') as EstadoColor;
+  const autoVerde = rawStatus === 'amarillo' && allAuditsSI;
+
+  const myStatus: EstadoColor = revision?.admin_override || (autoVerde ? 'verde' : rawStatus);
+  const isPublished = rawStatus !== 'rojo';
   const isExpired = countdown === 'Expirado';
+  const isRevClosed = revCountdown === 'Cerrado';
+  const isAdmin = (user as any)?.rol === 'admin';
 
   const togglePublicado = async () => {
-    if (!tarea || !user || isExpired) return;
+    if (!tarea || !user || (isExpired && !isAdmin)) return;
     if (myStatus === 'verde' || myStatus === 'morado' || myStatus === 'naranja') return; // Bloquear toggle si ya fue evaluado
 
     const uid = (user as any).id;
@@ -167,6 +187,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   };
 
   const votar = async (revisionId: string, voto: 'SI' | 'NO' | 'JUSTIFICADO') => {
+    if ((isExpired || isRevClosed) && !isAdmin) return alert('El tiempo de revisión ha terminado.');
     await supabase.from('revisiones').update({ voto }).eq('id', revisionId);
     loadDashboard();
   };

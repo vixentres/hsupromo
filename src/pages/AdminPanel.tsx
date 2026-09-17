@@ -75,14 +75,14 @@ function Leyenda() {
 const DEFAULT_CONFIG: Config = {
   id: 1, banner_url: '', material_nuevo_url: '',
   auditores_por_tarea: 2, ticketmaster_url: '', entradas_gratis_url: '',
-  fecha_evento: '2027-01-15',
+  fecha_evento: '2027-01-15', whatsapp_numero: '', whatsapp_mensaje: '',
 };
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export default function AdminPanel() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'users' | 'tasks' | 'stats'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'tasks' | 'stats' | 'config'>('users');
 
   // ── Usuarios ──────────────────────────────────────────────────────────────
   const [promotores, setPromotores] = useState<Promotor[]>([]);
@@ -100,18 +100,25 @@ export default function AdminPanel() {
   const [editingTaskTitle, setEditingTaskTitle] = useState<{ id: string; titulo: string } | null>(null);
   const [heatCountdown, setHeatCountdown] = useState('');
   const [heatRevCountdown, setHeatRevCountdown] = useState('');
+  const [newTaskAuditores, setNewTaskAuditores] = useState(2);
 
   // ── Config ────────────────────────────────────────────────────────────────
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
   const [savingConfig, setSavingConfig] = useState(false);
+  // Link visibility toggles (each field shows/hides the input)
+  const [visibleLinks, setVisibleLinks] = useState<Record<string, boolean>>({});
+  const toggleLink = (key: string) => setVisibleLinks(p => ({ ...p, [key]: !p[key] }));
 
   // ── Mapa de calor ─────────────────────────────────────────────────────────
   const [heatData, setHeatData] = useState<any[]>([]);
-  const [heatDates, setHeatDates] = useState<string[]>([]);
+  const [heatTasks, setHeatTasks] = useState<{ id: string, fecha: string, titulo: string }[]>([]);
+  const heatMapRef = React.useRef<HTMLDivElement>(null);
   const [heatColorFilter, setHeatColorFilter] = useState<EstadoColor | 'todos'>('todos');
   const [heatAdminFilter, setHeatAdminFilter] = useState<'todos' | 'revisadas' | 'pendientes'>('todos');
   const [heatSort, setHeatSort] = useState<'nombre' | 'estado'>('nombre');
-  const [selectedHeatDate, setSelectedHeatDate] = useState<string>(TODAY);
+  const [selectedHeatTask, setSelectedHeatTask] = useState<string>('');
+  const [heatMapOpen, setHeatMapOpen] = useState(true);
+  const [heatHistoryOpen, setHeatHistoryOpen] = useState(true);
 
   // ── Impersonation ─────────────────────────────────────────────────────────
   const [impersonated, setImpersonated] = useState<any>(null);
@@ -134,9 +141,9 @@ export default function AdminPanel() {
     }
   };
 
-  // ── Doble countdown para el día seleccionado ──────────────────────────────
+  // ── Doble countdown para la tarea seleccionada ──────────────────────────────
   useEffect(() => {
-    const selTask = tareas.find(t => t.fecha_tarea === selectedHeatDate);
+    const selTask = tareas.find(t => t.id === selectedHeatTask);
     if (!selTask) { setHeatCountdown(''); setHeatRevCountdown(''); return; }
     const created = new Date(selTask.created_at || selTask.fecha_tarea + 'T10:00:00Z');
     const expiry = new Date(created.getTime() + (selTask.horas_duracion || 24) * 3600000);
@@ -167,7 +174,7 @@ export default function AdminPanel() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [selectedHeatDate, tareas]);
+  }, [selectedHeatTask, tareas]);
 
   // ── Guardar nombre de tarea ───────────────────────────────────────────────
   const saveTaskTitle = async () => {
@@ -197,36 +204,44 @@ export default function AdminPanel() {
     const { data: proms } = await supabase.from('promotores').select('id, nombre, instagram').eq('rol', 'promotor').order('created_at');
     if (!proms) return;
     
-    // 2. Obtener revisiones
+    // 2. Obtener tareas
+    const { data: tareasData } = await supabase.from('tareas').select('id, fecha_tarea, titulo, horas_duracion, horas_revision, created_at').order('created_at', { ascending: true });
+    if (!tareasData) return;
+    const taskList = tareasData.map(t => ({ id: t.id, fecha: t.fecha_tarea, titulo: t.titulo }));
+    setHeatTasks(taskList);
+    
+    if (!selectedHeatTask && taskList.length > 0) {
+      setSelectedHeatTask(taskList[taskList.length - 1].id);
+    }
+
+    // 3. Obtener revisiones
     const { data: revs } = await supabase
       .from('revisiones')
       .select('*, tareas!revisiones_tarea_id_fkey(fecha_tarea), target:promotores!revisiones_promotor_id_fkey(id, nombre, instagram)')
       .order('created_at');
-    
-    const dates = revs ? [...new Set(revs.map((r: any) => r.tareas?.fecha_tarea).filter(Boolean))].sort() as string[] : [];
-    setHeatDates(dates);
 
     const byPromotor: Record<string, any> = {};
     proms.forEach((p: any) => {
-      byPromotor[p.id] = { promotor: p, dias: {} };
+      byPromotor[p.id] = { promotor: p, tareas: {} };
     });
 
     if (revs) {
       revs.forEach((r: any) => {
-        const fecha = r.tareas?.fecha_tarea;
-        if (!fecha) return;
+        const tareaId = r.tarea_id;
+        if (!tareaId) return;
         const pId = r.promotor_id;
         const aId = r.auditor_id;
         
-        if (!byPromotor[pId]) return; // por si acaso
-        if (!byPromotor[pId].dias[fecha]) byPromotor[pId].dias[fecha] = { self: null, asAuditor: [] };
+        if (!byPromotor[pId]) return;
+        if (!byPromotor[pId].tareas[tareaId]) byPromotor[pId].tareas[tareaId] = { self: null, asAuditor: [], incomingAudits: [] };
         if (!byPromotor[aId]) return;
-        if (!byPromotor[aId].dias[fecha]) byPromotor[aId].dias[fecha] = { self: null, asAuditor: [] };
+        if (!byPromotor[aId].tareas[tareaId]) byPromotor[aId].tareas[tareaId] = { self: null, asAuditor: [], incomingAudits: [] };
 
         if (pId === aId) {
-          byPromotor[pId].dias[fecha].self = r;
+          byPromotor[pId].tareas[tareaId].self = r;
         } else {
-          byPromotor[aId].dias[fecha].asAuditor.push(r);
+          byPromotor[aId].tareas[tareaId].asAuditor.push(r);
+          byPromotor[pId].tareas[tareaId].incomingAudits.push(r);
         }
       });
     }
@@ -381,7 +396,7 @@ export default function AdminPanel() {
     // Desactivar las de días anteriores
     await supabase.from('tareas').update({ activa: false }).neq('id', tareaId);
 
-    const numAuditores = Math.min(config.auditores_por_tarea || 2, proms.length - 1);
+    const numAuditores = Math.min(newTaskAuditores || 2, proms.length - 1);
 
     proms.forEach((p, i) => {
       selfRows.push({
@@ -412,30 +427,39 @@ export default function AdminPanel() {
     alert(`"${titulo}" creada y asignada a ${proms.length} promotores ✓`);
   };
 
-  // ── Mapa calor: override ─────────────────────────────────────────────────
-  const overrideColor = async (revId: string | null, color: EstadoColor) => {
-    if (!revId) return alert('Este usuario no tiene entrada para hoy.');
+  // ── Mapa calor: override (toggle — mismo color = quita el override) ──────
+  const overrideColor = async (revId: string | null, color: EstadoColor | null) => {
+    if (!revId) return alert('Este usuario no tiene entrada para este día.');
     await supabase.from('revisiones').update({ admin_override: color }).eq('id', revId);
     loadHeatMap();
+  };
+
+  // ── Tareas: eliminar ──────────────────────────────────────────────────────
+  const deleteTask = async (tareaId: string, titulo: string) => {
+    const res = prompt(`Vas a eliminar la tarea "${titulo}" y TODAS sus revisiones.\nEscribe ELIMINAR para confirmar:`);
+    if (res !== 'ELIMINAR') { if (res !== null) alert('Cancelado.'); return; }
+    await supabase.from('revisiones').delete().eq('tarea_id', tareaId);
+    await supabase.from('tareas').delete().eq('id', tareaId);
+    await Promise.all([loadTareas(), loadHeatMap()]);
   };
 
   // ── Mapa de calor: filtros ─────────────────────────────────────────────────
   const getFilteredHeat = () => {
     let list = [...heatData];
-    const date = selectedHeatDate;
+    const taskId = selectedHeatTask;
 
     if (heatColorFilter !== 'todos') {
       list = list.filter(row => {
-        const selfRev = row.dias[date]?.self;
+        const selfRev = row.tareas[taskId]?.self;
         const status = (selfRev?.admin_override || selfRev?.submission_status || 'rojo') as EstadoColor;
         return status === heatColorFilter;
       });
     }
 
     if (heatAdminFilter === 'revisadas') {
-      list = list.filter(row => !!row.dias[date]?.self?.admin_override);
+      list = list.filter(row => !!row.tareas[taskId]?.self?.admin_override);
     } else if (heatAdminFilter === 'pendientes') {
-      list = list.filter(row => !row.dias[date]?.self?.admin_override);
+      list = list.filter(row => !row.tareas[taskId]?.self?.admin_override);
     }
 
     if (heatSort === 'nombre') {
@@ -443,10 +467,10 @@ export default function AdminPanel() {
     } else {
       list.sort((a, b) => {
         const getScore = (row: any) => {
-          const dia = row.dias[date] || { self: null, asAuditor: [] };
-          const status = (dia.self?.admin_override || dia.self?.submission_status || 'rojo') as EstadoColor;
+          const tarea = row.tareas[taskId] || { self: null, asAuditor: [] };
+          const status = (tarea.self?.admin_override || tarea.self?.submission_status || 'rojo') as EstadoColor;
           const hasPublished = status !== 'rojo';
-          const pendingAuditsCount = (dia.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
+          const pendingAuditsCount = (tarea.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
           if (!hasPublished && pendingAuditsCount > 0) return 1;
           if (!hasPublished && pendingAuditsCount === 0) return 2;
           if (hasPublished && pendingAuditsCount > 0 && status !== 'verde') return 3;
@@ -460,8 +484,8 @@ export default function AdminPanel() {
 
     // Admin-reviewed rows go to bottom
     list.sort((a, b) => {
-      const aRev = !!a.dias[date]?.self?.admin_override;
-      const bRev = !!b.dias[date]?.self?.admin_override;
+      const aRev = !!a.tareas[taskId]?.self?.admin_override;
+      const bRev = !!b.tareas[taskId]?.self?.admin_override;
       return aRev === bRev ? 0 : aRev ? 1 : -1;
     });
 
@@ -511,14 +535,15 @@ export default function AdminPanel() {
 
         {/* Tabs Principales */}
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {(['users', 'tasks', 'stats'] as const).map(tab => (
+          {(['users', 'tasks', 'stats', 'config'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2
               ${activeTab === tab ? 'bg-white text-neutral-900 shadow-lg' : 'bg-neutral-900 text-gray-400 hover:text-white border border-white/5 hover:bg-neutral-800'}`}>
               {tab === 'users' && <Users size={16} />}
               {tab === 'tasks' && <FileText size={16} />}
               {tab === 'stats' && <BarChart3 size={16} />}
-              {tab === 'users' ? 'Promotores' : tab === 'tasks' ? 'Gestor de Tareas' : 'Analíticas'}
+              {tab === 'config' && <Settings size={16} />}
+              {tab === 'users' ? 'Promotores' : tab === 'tasks' ? 'Tareas y Revisiones' : tab === 'stats' ? 'Analíticas' : 'Configuración'}
             </button>
           ))}
         </div>
@@ -639,72 +664,10 @@ export default function AdminPanel() {
         {activeTab === 'tasks' && (
           <div className="space-y-6">
 
-            {/* Config Global */}
-            <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden transition-all">
-              <div 
-                className="px-6 py-4 flex justify-between items-center cursor-pointer hover:bg-white/5 transition-colors"
-                onClick={() => setConfigOpen(!configOpen)}
-              >
-                <div>
-                  <h2 className="font-black text-base flex items-center gap-2">Configuración Global</h2>
-                  <p className="text-gray-500 text-xs mt-0.5">Links, banner y opciones del sistema</p>
-                </div>
-                <ChevronDown size={18} className={`text-gray-400 transition-transform ${configOpen ? 'rotate-180' : ''}`} />
-              </div>
-              
-              {configOpen && (
-                <div className="p-6 border-t border-white/8 bg-neutral-950/30">
-                  {/* Preview del banner */}
-                  {config.banner_url && (
-                    <div className="mb-4 w-full max-w-xs rounded-xl overflow-hidden border border-white/10 aspect-video bg-neutral-800">
-                      <img src={bannerPreview} alt="Preview banner"
-                        className="w-full h-full object-cover"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    {([
-                      ['banner_url', 'URL Banner (Drive o directa)', 'https://drive.google.com/file/d/.../view'],
-                      ['ticketmaster_url', 'URL Botón "Comprar en Ticketmaster"', 'https://www.ticketmaster.cl/...'],
-                      ['entradas_gratis_url', 'URL Botón "Entradas sin cargo"', 'https://...'],
-                      ['material_nuevo_url', 'URL Material RRSS (Drive — carpeta con todo)', 'https://drive.google.com/drive/folders/...'],
-                    ] as const).map(([field, label, placeholder]) => (
-                      <div key={field} className={field === 'banner_url' ? 'md:col-span-2' : ''}>
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">{label}</label>
-                        <input type="text" value={config[field] || ''} placeholder={placeholder}
-                          onChange={e => setConfig(c => ({ ...c, [field]: e.target.value }))}
-                          className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all" />
-                      </div>
-                    ))}
-                    <div>
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Fecha del Evento (para cuenta regresiva)</label>
-                      <input type="date" value={config.fecha_evento || '2027-01-15'}
-                        onChange={e => setConfig(c => ({ ...c, fecha_evento: e.target.value }))}
-                        className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all text-white" />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Auditores por tarea</label>
-                      <input type="number" min={1} max={5} value={config.auditores_por_tarea}
-                        onChange={e => setConfig(c => ({ ...c, auditores_por_tarea: parseInt(e.target.value) }))}
-                        className="w-20 bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-blue-500/60 outline-none text-center" />
-                    </div>
-                    <button onClick={saveConfig} disabled={savingConfig}
-                      className="mt-5 bg-white hover:bg-gray-100 text-neutral-900 font-bold py-2 px-5 rounded-xl text-sm flex items-center gap-2 transition-colors border border-white/10">
-                      <Save size={14} /> {savingConfig ? 'Guardando...' : 'Guardar Config'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Nueva Tarea */}
+              {/* Gestor de Tarea */}
               <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 h-fit">
-                <h2 className="font-black text-base mb-4">Nueva Tarea Diaria</h2>
+                <h2 className="font-black text-base mb-4">Gestor de Tarea</h2>
                 <div className="flex flex-col gap-3">
                   <div className="flex gap-3 flex-wrap">
                     <input type="text" value={newTask.titulo} onChange={e => setNewTask(t => ({ ...t, titulo: e.target.value }))}
@@ -717,6 +680,8 @@ export default function AdminPanel() {
                         className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
                       <span className="text-xs text-gray-600">h</span>
                     </div>
+                  </div>
+                  <div className="flex gap-3 flex-wrap">
                     <div className="flex items-center gap-2 bg-neutral-950 border border-yellow-500/20 rounded-xl px-4 py-2.5" title="Horas ANTES de expirar en que se cierra la revisión (ej: 4 = revisión a las 20h si la tarea dura 24h)">
                       <span className="text-xs text-yellow-600 font-semibold">🔔 Cierre revisión:</span>
                       <input type="number" min={0} max={newTask.horas_duracion - 1} value={newTask.horas_revision}
@@ -724,7 +689,14 @@ export default function AdminPanel() {
                         className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
                       <span className="text-xs text-gray-600">h antes</span>
                     </div>
+                    <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5" title="Cantidad de compañeros que cada promotor debe auditar">
+                      <span className="text-xs text-gray-500 font-semibold">Auditores:</span>
+                      <input type="number" min={1} max={5} value={newTaskAuditores}
+                        onChange={e => setNewTaskAuditores(parseInt(e.target.value) || 2)}
+                        className="w-10 bg-transparent text-sm outline-none text-center font-mono" />
+                    </div>
                   </div>
+
                   <button onClick={crearTarea} disabled={creatingTask}
                     className="self-end bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 font-black py-2.5 px-6 rounded-xl text-sm flex items-center gap-2 transition-all">
                     {creatingTask
@@ -738,79 +710,90 @@ export default function AdminPanel() {
             </div>
 
             {/* Mapa de Calor */}
-            <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6">
+            <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6" ref={heatMapRef}>
               <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
-                <div>
-                  <h2 className="font-black text-base flex items-center gap-2">
-                    Mapa de Calor 
-                    <button onClick={loadHeatMap} className="text-gray-500 hover:text-white transition-colors" title="Refrescar mapa">
-                      <RefreshCw size={14} />
-                    </button>
-                  </h2>
-                  <p className="text-gray-500 text-xs mt-0.5">Click en un círculo para modificar el estado manualmente</p>
+                <div 
+                  className="cursor-pointer flex items-center gap-2 group"
+                  onClick={() => setHeatMapOpen(!heatMapOpen)}
+                >
+                  <ChevronDown size={18} className={`text-gray-400 transition-transform ${heatMapOpen ? 'rotate-180' : ''}`} />
+                  <div>
+                    <h2 className="font-black text-base flex items-center gap-2">
+                      Mapa de Calor 
+                      <button onClick={(e) => { e.stopPropagation(); loadHeatMap(); }} className="text-gray-500 hover:text-white transition-colors" title="Refrescar mapa">
+                        <RefreshCw size={14} />
+                      </button>
+                    </h2>
+                    <p className="text-gray-500 text-xs mt-0.5">Día seleccionado (click para expandir/colapsar)</p>
+                  </div>
                 </div>
                 {/* Filtros mapa */}
-                <div className="flex flex-wrap gap-2">
-                  <div className="flex gap-1 bg-neutral-950 border border-white/10 p-1 rounded-xl">
-                    <button onClick={() => setHeatColorFilter('todos')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${heatColorFilter === 'todos' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
-                      Todos
-                    </button>
-                    {COLORS.map(c => (
-                      <button key={c} onClick={() => setHeatColorFilter(c)}
-                        className={`w-6 h-6 rounded-lg ${COLOR_META[c].bg} transition-all ${heatColorFilter === c ? 'ring-2 ring-white ring-offset-1 ring-offset-neutral-900 scale-110' : 'opacity-60 hover:opacity-100'}`}
-                        title={COLOR_META[c].label} />
-                    ))}
-                  </div>
-                  <div className="flex gap-1 bg-neutral-950 border border-white/10 p-1 rounded-xl">
-                    {(['nombre', 'estado'] as const).map(s => (
-                      <button key={s} onClick={() => setHeatSort(s)}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition-all ${heatSort === s ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
-                        {s === 'nombre' ? 'A→Z' : 'Por Estado'}
+                {heatMapOpen && (
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex gap-1 bg-neutral-950 border border-white/10 p-1 rounded-xl">
+                      <button onClick={() => setHeatColorFilter('todos')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${heatColorFilter === 'todos' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
+                        Todos
                       </button>
-                    ))}
+                      {COLORS.map(c => (
+                        <button key={c} onClick={() => setHeatColorFilter(c)}
+                          className={`w-6 h-6 rounded-lg ${COLOR_META[c].bg} transition-all ${heatColorFilter === c ? 'ring-2 ring-white ring-offset-1 ring-offset-neutral-900 scale-110' : 'opacity-60 hover:opacity-100'}`}
+                          title={COLOR_META[c].label} />
+                      ))}
+                    </div>
+                    <div className="flex gap-1 bg-neutral-950 border border-white/10 p-1 rounded-xl">
+                      {(['nombre', 'estado'] as const).map(s => (
+                        <button key={s} onClick={() => setHeatSort(s)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition-all ${heatSort === s ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
+                          {s === 'nombre' ? 'A→Z' : 'Por Estado'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              <Leyenda />
+              {heatMapOpen && (
+                <>
+                  <Leyenda />
 
-              {/* DÍA SELECCIONADO (TOP) */}
-              <div className="mb-8">
-                {/* Header con título editable, contadores y controles */}
-                <div className="flex flex-col gap-3 mb-4 p-4 bg-neutral-950/40 border border-white/8 rounded-xl">
-                  {/* Fila 1: Fecha + Título editable */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${selectedHeatDate === TODAY ? 'bg-blue-400 animate-pulse' : 'bg-gray-500'}`} />
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{selectedHeatDate === TODAY ? 'HOY' : 'Día seleccionado'} — {formatDate(selectedHeatDate)}</span>
+                  {/* DÍA SELECCIONADO (TOP) */}
+                  <div className="mb-8">
+                    {/* Header con título editable, contadores y controles */}
+                    <div className="flex flex-col gap-3 mb-4 p-4 bg-neutral-950/40 border border-white/8 rounded-xl">
+                      {/* Fila 1: Fecha + Título editable */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        {(() => {
+                          const selTask = tareas.find(t => t.id === selectedHeatTask);
+                          if (!selTask) return <span className="text-gray-600 text-xs">Sin tarea seleccionada</span>;
+                          return (
+                            <>
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${selTask.fecha_tarea === TODAY ? 'bg-blue-400 animate-pulse' : 'bg-gray-500'}`} />
+                              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{selTask.fecha_tarea === TODAY ? 'HOY' : 'Día seleccionado'} — {formatDate(selTask.fecha_tarea)}</span>
 
-                    {/* Título editable */}
-                    {(() => {
-                      const selTask = tareas.find(t => t.fecha_tarea === selectedHeatDate);
-                      if (!selTask) return <span className="text-gray-600 text-xs">Sin tarea</span>;
-                      if (editingTaskTitle?.id === selTask.id) {
-                        return (
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              value={editingTaskTitle.titulo}
-                              onChange={e => setEditingTaskTitle(prev => prev ? { ...prev, titulo: e.target.value } : null)}
-                              onKeyDown={e => { if (e.key === 'Enter') saveTaskTitle(); if (e.key === 'Escape') setEditingTaskTitle(null); }}
-                              className="bg-neutral-800 border border-blue-500/60 rounded-lg px-2 py-0.5 text-xs outline-none text-white w-52"
-                              autoFocus
-                            />
-                            <button onClick={saveTaskTitle} className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white font-bold px-2 py-0.5 rounded-lg">✓</button>
-                            <button onClick={() => setEditingTaskTitle(null)} className="text-[10px] text-gray-500 hover:text-white px-1">✕</button>
-                          </div>
-                        );
-                      }
-                      return (
-                        <button onClick={() => setEditingTaskTitle({ id: selTask.id, titulo: selTask.titulo })}
-                          className="text-xs text-gray-400 hover:text-white border border-transparent hover:border-white/20 px-2 py-0.5 rounded-lg transition-all flex items-center gap-1">
-                          ✏️ {selTask.titulo}
-                        </button>
-                      );
-                    })()}
-                  </div>
+                              {/* Título editable */}
+                              {editingTaskTitle?.id === selTask.id ? (
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    value={editingTaskTitle.titulo}
+                                    onChange={e => setEditingTaskTitle(prev => prev ? { ...prev, titulo: e.target.value } : null)}
+                                    onKeyDown={e => { if (e.key === 'Enter') saveTaskTitle(); if (e.key === 'Escape') setEditingTaskTitle(null); }}
+                                    className="bg-neutral-800 border border-blue-500/60 rounded-lg px-2 py-0.5 text-xs outline-none text-white w-52"
+                                    autoFocus
+                                  />
+                                  <button onClick={saveTaskTitle} className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white font-bold px-2 py-0.5 rounded-lg">✓</button>
+                                  <button onClick={() => setEditingTaskTitle(null)} className="text-[10px] text-gray-500 hover:text-white px-1">✕</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setEditingTaskTitle({ id: selTask.id, titulo: selTask.titulo })}
+                                  className="text-xs text-gray-400 hover:text-white border border-transparent hover:border-white/20 px-2 py-0.5 rounded-lg transition-all flex items-center gap-1">
+                                  {selTask.titulo} ✏️
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
 
                   {/* Fila 2: Contadores + Añadir horas */}
                   <div className="flex flex-wrap items-center gap-4">
@@ -827,11 +810,11 @@ export default function AdminPanel() {
                         <span className={`font-mono font-bold text-sm ${heatRevCountdown.includes('cerrado') ? 'text-red-400' : 'text-yellow-400'}`}>{heatRevCountdown}</span>
                       </div>
                     )}
-                    {tareas.find(t => t.fecha_tarea === selectedHeatDate) && (
+                    {tareas.find(t => t.id === selectedHeatTask) && (
                       <div className="flex items-center gap-1.5 ml-auto">
                         <input
                           type="number"
-                          id={`hours_${selectedHeatDate}`}
+                          id={`hours_${selectedHeatTask}`}
                           defaultValue={4}
                           min={1}
                           className="w-14 bg-neutral-800 border border-white/10 rounded-lg px-2 py-1 text-xs text-center outline-none focus:border-blue-500/60 text-white"
@@ -839,8 +822,8 @@ export default function AdminPanel() {
                         />
                         <button
                           onClick={() => {
-                            const val = parseInt((document.getElementById(`hours_${selectedHeatDate}`) as HTMLInputElement).value) || 0;
-                            const tId = tareas.find(t => t.fecha_tarea === selectedHeatDate)?.id;
+                            const val = parseInt((document.getElementById(`hours_${selectedHeatTask}`) as HTMLInputElement).value) || 0;
+                            const tId = tareas.find(t => t.id === selectedHeatTask)?.id;
                             if (tId && val > 0) addHours(tId, val);
                           }}
                           className="bg-neutral-800 hover:bg-neutral-700 text-blue-400 font-bold px-3 py-1 text-xs rounded-lg transition-colors border border-blue-500/20 whitespace-nowrap flex items-center gap-1.5">
@@ -875,17 +858,24 @@ export default function AdminPanel() {
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {getFilteredHeat().map(row => {
-                        const dia = row.dias[selectedHeatDate] || { self: null, asAuditor: [] };
-                        const selfRev = dia.self;
+                        const tarea = row.tareas[selectedHeatTask] || { self: null, asAuditor: [], incomingAudits: [] };
+                        const selfRev = tarea.self;
                         const rawStatus = (selfRev?.submission_status || 'rojo') as EstadoColor;
                         const adminOverride = selfRev?.admin_override as EstadoColor | null;
-                        const status = adminOverride || rawStatus;
+
+                        // Auto-verde: si publicó (amarillo) Y todos los revisores votaron SI
+                        const incomingAudits: any[] = tarea.incomingAudits || [];
+                        const allAuditsSI = incomingAudits.length > 0 && incomingAudits.every((a: any) => a.voto === 'SI');
+                        const autoVerde = rawStatus === 'amarillo' && allAuditsSI;
+
+                        const status = adminOverride || (autoVerde ? 'verde' : rawStatus);
                         const hasPublished = rawStatus !== 'rojo';
                         const hasAdminReview = !!adminOverride;
-                        const pendingAudits = (dia.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
+                        const pendingAudits = (tarea.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
 
                         let stateText = '';
-                        if (status === 'verde' || status === 'morado') stateText = pendingAudits > 0 ? 'Aprobado, debe revisar' : '✅ 100% OK';
+                        if (autoVerde && !adminOverride) stateText = pendingAudits > 0 ? '✅ Auto-aprobado, debe revisar' : '✅ Auto-aprobado (revisión cruzada)';
+                        else if (status === 'verde' || status === 'morado') stateText = pendingAudits > 0 ? 'Aprobado, debe revisar' : '✅ 100% OK';
                         else if (status === 'naranja') stateText = 'Justificado';
                         else if (hasPublished) stateText = pendingAudits > 0 ? 'Publicó · Espera revisión' : 'Publicó · Sin validar';
                         else stateText = pendingAudits > 0 ? 'Sin publicar · Debe revisar' : 'Sin publicar';
@@ -910,7 +900,7 @@ export default function AdminPanel() {
                             {/* COL 3: Debe revisar a */}
                             <td className="py-3 px-3">
                               <div className="flex flex-col gap-1 min-w-[130px]">
-                                {(dia.asAuditor || []).map((a: any, i: number) => {
+                                {(tarea.asAuditor || []).map((a: any, i: number) => {
                                   let icon = '⏳'; let iconClass = 'text-yellow-400';
                                   if (a.voto === 'SI') { icon = '🟢'; iconClass = 'text-green-400'; }
                                   else if (a.voto === 'NO') { icon = '🔴'; iconClass = 'text-red-400'; }
@@ -922,7 +912,7 @@ export default function AdminPanel() {
                                     </div>
                                   );
                                 })}
-                                {(!dia.asAuditor || dia.asAuditor.length === 0) && <span className="text-gray-600 text-[10px]">—</span>}
+                                {(!tarea.asAuditor || tarea.asAuditor.length === 0) && <span className="text-gray-600 text-[10px]">—</span>}
                               </div>
                             </td>
                             {/* COL 4: Color + Estado Real */}
@@ -939,18 +929,13 @@ export default function AdminPanel() {
                                   <button key={col}
                                     onClick={() => {
                                       if (!selfRev?.id) return alert('Sin datos para este promotor en este día.');
-                                      const isSame = adminOverride === col;
-                                      overrideColor(selfRev.id, isSame ? rawStatus : col);
+                                      // Toggle: si ya está activo ese color → quitar override (null)
+                                      overrideColor(selfRev.id, adminOverride === col ? null : col);
                                     }}
                                     className={`w-5 h-5 rounded-full transition-all ${COLOR_META[col].bg} ${adminOverride === col ? 'ring-2 ring-white ring-offset-1 ring-offset-neutral-900 scale-110' : 'opacity-40 hover:opacity-100'}`}
-                                    title={`Marcar como ${COLOR_META[col].label}${adminOverride === col ? ' (click para quitar)' : ''}`}
+                                    title={adminOverride === col ? `Quitar revisión (${COLOR_META[col].label})` : `Marcar como ${COLOR_META[col].label}`}
                                   />
                                 ))}
-                                {adminOverride && (
-                                  <button onClick={() => selfRev?.id && overrideColor(selfRev.id, rawStatus)}
-                                    className="w-4 h-4 rounded-full bg-neutral-600 hover:bg-neutral-500 flex items-center justify-center text-[8px] font-bold ml-0.5"
-                                    title="Quitar revisión admin">✕</button>
-                                )}
                               </div>
                             </td>
                             {/* COL 6: Ver panel */}
@@ -973,49 +958,73 @@ export default function AdminPanel() {
                   </table>
                 </div>
               </div>
+              </>
+            )}
 
-              {/* HISTÓRICO */}
-              {heatDates.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Historial Completo</h3>
-                  <div className="overflow-x-auto">
-                    <table className="text-sm">
-                      <thead>
-                        <tr className="text-gray-500 text-xs border-b border-white/8">
-                          <th className="text-left pb-2 pr-6 font-semibold sticky left-0 bg-neutral-900 min-w-[150px]">Promotor</th>
-                          {heatDates.map(d => (
-                            <th key={d} 
-                                onClick={() => setSelectedHeatDate(d)}
-                                className={`text-center pb-2 px-3 font-semibold cursor-pointer transition-colors hover:text-white ${d === selectedHeatDate ? 'text-white bg-blue-500/20 border-b-2 border-blue-500' : (d === TODAY ? 'text-blue-400' : '')}`}>
-                              {formatDate(d)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {heatData.map(row => (
-                          <tr key={row.promotor?.id} className="hover:bg-neutral-800/20 transition-colors">
-                            <td className="py-3 pr-6 sticky left-0 bg-neutral-900">
-                              <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
-                                className="font-semibold text-white hover:text-blue-400 transition-colors">
-                                {row.promotor?.nombre}
-                              </a>
-                            </td>
-                            {heatDates.map(d => {
-                              const dia = row.dias[d] || { self: null };
-                              const selfRev = dia.self;
-                              const status = (selfRev?.admin_override || selfRev?.submission_status || 'rojo') as EstadoColor;
-                              return (
-                                <td key={d} className="py-3 px-3 text-center">
-                                  <HeatCell revId={selfRev?.id || null} currentStatus={status} onOverride={overrideColor} />
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+            {/* HISTÓRICO */}
+              {heatTasks.length > 0 && (
+                <div className="mt-8 pt-8 border-t border-white/8">
+                  <div 
+                    className="cursor-pointer flex items-center gap-2 group mb-4"
+                    onClick={() => setHeatHistoryOpen(!heatHistoryOpen)}
+                  >
+                    <ChevronDown size={18} className={`text-gray-400 transition-transform ${heatHistoryOpen ? 'rotate-180' : ''}`} />
+                    <div>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Historial Mapa de Calor</h3>
+                    </div>
                   </div>
+                  
+                  {heatHistoryOpen && (
+                    <div className="overflow-x-auto">
+                      <table className="text-sm">
+                        <thead>
+                          <tr className="text-gray-500 text-xs border-b border-white/8">
+                            <th className="text-left pb-2 pr-6 font-semibold sticky left-0 bg-neutral-900 min-w-[150px] align-bottom">Promotor</th>
+                            {heatTasks.map(t => (
+                              <th key={t.id} 
+                                  className={`text-center pb-2 px-3 font-semibold transition-colors ${t.id === selectedHeatTask ? 'text-white bg-blue-500/20 border-b-2 border-blue-500' : (t.fecha === TODAY ? 'text-blue-400' : '')}`}>
+                                <div className="flex flex-col items-center gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className="cursor-pointer hover:text-white" onClick={() => {
+                                      setSelectedHeatTask(t.id);
+                                      setHeatMapOpen(true);
+                                      heatMapRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                    }}>{formatDate(t.fecha)}</span>
+                                    <button onClick={() => deleteTask(t.id, t.titulo)} className="text-gray-600 hover:text-red-400 transition-colors" title="Eliminar tarea">
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                  <span className="text-[10px] text-gray-500 max-w-[100px] truncate" title={t.titulo}>{t.titulo}</span>
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {heatData.map(row => (
+                            <tr key={row.promotor?.id} className="hover:bg-neutral-800/20 transition-colors">
+                              <td className="py-3 pr-6 sticky left-0 bg-neutral-900">
+                                <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                                  className="font-semibold text-white hover:text-blue-400 transition-colors">
+                                  {row.promotor?.nombre}
+                                </a>
+                              </td>
+                              {heatTasks.map(t => {
+                                const tarea = row.tareas[t.id] || { self: null };
+                                const selfRev = tarea.self;
+                                const status = (selfRev?.admin_override || selfRev?.submission_status || 'rojo') as EstadoColor;
+                                return (
+                                  <td key={t.id} className="py-3 px-3 text-center">
+                                    <HeatCell revId={selfRev?.id || null} currentStatus={status} onOverride={overrideColor} />
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1177,6 +1186,95 @@ export default function AdminPanel() {
             </div>
           );
         })()}
+
+        {/* ══ TAB CONFIGURACIÓN ════════════════════════════════════════════ */}
+        {activeTab === 'config' && (
+          <div className="space-y-6">
+            <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/8 flex justify-between items-center bg-neutral-950/30">
+                <div>
+                  <h2 className="font-black text-base flex items-center gap-2">Configuración Global</h2>
+                  <p className="text-gray-500 text-xs mt-0.5">Links, banner y opciones del sistema</p>
+                </div>
+                <button onClick={saveConfig} disabled={savingConfig}
+                  className="bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 font-bold py-2 px-5 rounded-xl text-sm flex items-center gap-2 transition-colors">
+                  <Save size={14} /> {savingConfig ? 'Guardando...' : 'Guardar Config'}
+                </button>
+              </div>
+              
+              <div className="p-6">
+                {/* Preview del banner */}
+                {config.banner_url && (
+                  <div className="mb-6 w-full max-w-sm rounded-xl overflow-hidden border border-white/10 aspect-video bg-neutral-800">
+                    <img src={bannerPreview} alt="Preview banner"
+                      className="w-full h-full object-cover"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                  {/* Bloque URLs */}
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-gray-300 border-b border-white/10 pb-2">URLs de Botones y Material</h3>
+                    {([
+                      ['banner_url', '🖼️ Banner', 'URL Banner (Drive o directa)', 'https://drive.google.com/file/d/.../view'],
+                      ['ticketmaster_url', '🎫 Ticketmaster', 'URL Botón "Comprar en Ticketmaster"', 'https://www.ticketmaster.cl/...'],
+                      ['material_nuevo_url', '📁 Material RRSS', 'URL Material RRSS (Drive — carpeta)', 'https://drive.google.com/drive/folders/...'],
+                    ] as const).map(([field, btnLabel, label, placeholder]) => (
+                      <div key={field} className="bg-neutral-950/50 p-4 rounded-xl border border-white/5">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</label>
+                          <button onClick={() => toggleLink(field)}
+                            className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-colors ${config[field] ? 'bg-green-500/10 text-green-400' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+                            {config[field] ? `${btnLabel} ✓` : `Añadir ${btnLabel}`}
+                          </button>
+                        </div>
+                        {visibleLinks[field] && (
+                          <input type="text" value={config[field] || ''} placeholder={placeholder}
+                            onChange={e => setConfig(c => ({ ...c, [field]: e.target.value }))}
+                            className="w-full bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all mt-2" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Bloque WhatsApp / Config general */}
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-gray-300 border-b border-white/10 pb-2">WhatsApp / Evento</h3>
+                    
+                    <div className="bg-neutral-950/50 p-4 rounded-xl border border-white/5 space-y-4">
+                      <h4 className="text-sm font-semibold text-gray-300">Botón "Entradas sin cargo" (WhatsApp)</h4>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Número de Teléfono</label>
+                        <input type="text" value={config.whatsapp_numero || ''} placeholder="+56912345678"
+                          onChange={e => setConfig(c => ({ ...c, whatsapp_numero: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Mensaje Predeterminado</label>
+                        <textarea value={config.whatsapp_mensaje || ''} placeholder="Hola, quiero entradas gratis..." rows={3}
+                          onChange={e => setConfig(c => ({ ...c, whatsapp_mensaje: e.target.value }))}
+                          className="w-full bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all resize-none" />
+                      </div>
+                      <p className="text-[10px] text-gray-500 bg-neutral-900 p-2 rounded-lg border border-white/5">
+                        El link final será: <br/><span className="font-mono text-gray-400 break-all">https://wa.me/{config.whatsapp_numero || '+569...'}?text={encodeURIComponent(config.whatsapp_mensaje || 'Hola...')} ref: @instagram_promotor</span>
+                      </p>
+                    </div>
+
+                    <div className="bg-neutral-950/50 p-4 rounded-xl border border-white/5">
+                      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Fecha del Evento (Cuenta regresiva)</label>
+                      <input type="date" value={config.fecha_evento || '2027-01-15'}
+                        onChange={e => setConfig(c => ({ ...c, fecha_evento: e.target.value }))}
+                        className="w-full bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-blue-500/60 outline-none transition-all text-white" />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

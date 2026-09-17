@@ -76,4 +76,6 @@ export interface Config {
   ticketmaster_url: string;
   entradas_gratis_url: string;
   fecha_evento: string;
+  whatsapp_numero: string;
+  whatsapp_mensaje: string;
 }
