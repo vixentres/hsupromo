@@ -306,11 +306,18 @@ export default function AdminPanel() {
     const titulo = newTask.titulo.trim() || `Tarea del día ${formatDate(TODAY)}`;
     
     // Solo promotores para la asignación
-    const { data: proms } = await supabase.from('promotores').select('id').eq('rol', 'promotor').order('created_at');
-    if (!proms || proms.length === 0) {
+    const { data: promsData } = await supabase.from('promotores').select('id').eq('rol', 'promotor');
+    if (!promsData || promsData.length === 0) {
       alert('No hay promotores para asignar.');
       setCreatingTask(false);
       return;
+    }
+
+    // Algoritmo aleatorio (Fisher-Yates Shuffle) para no asignar siempre a los mismos colegas
+    const proms = [...promsData];
+    for (let i = proms.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [proms[i], proms[j]] = [proms[j], proms[i]];
     }
 
     const { data: tarea, error } = await supabase.from('tareas').insert({
