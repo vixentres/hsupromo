@@ -51,6 +51,7 @@ export interface Tarea {
   titulo: string;
   material_nuevo: string;
   horas_duracion: number;
+  horas_revision: number;
   activa: boolean;
   fecha_tarea: string;
   created_at?: string;

@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
     "autoprefixer": "^10.6.1",
+    "dayjs": "^1.11.23",
     "lucide-react": "^1.46.0",
     "postcss": "^8.5.28",
     "react": "^19.2.8",

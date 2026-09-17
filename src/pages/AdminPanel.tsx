@@ -95,8 +95,11 @@ export default function AdminPanel() {
 
   // ── Tareas ────────────────────────────────────────────────────────────────
   const [tareas, setTareas] = useState<Tarea[]>([]);
-  const [newTask, setNewTask] = useState({ titulo: '', horas_duracion: 24, material_nuevo: '' });
+  const [newTask, setNewTask] = useState({ titulo: '', horas_duracion: 24, horas_revision: 0, material_nuevo: '' });
   const [creatingTask, setCreatingTask] = useState(false);
+  const [editingTaskTitle, setEditingTaskTitle] = useState<{ id: string; titulo: string } | null>(null);
+  const [heatCountdown, setHeatCountdown] = useState('');
+  const [heatRevCountdown, setHeatRevCountdown] = useState('');
 
   // ── Config ────────────────────────────────────────────────────────────────
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
@@ -106,6 +109,7 @@ export default function AdminPanel() {
   const [heatData, setHeatData] = useState<any[]>([]);
   const [heatDates, setHeatDates] = useState<string[]>([]);
   const [heatColorFilter, setHeatColorFilter] = useState<EstadoColor | 'todos'>('todos');
+  const [heatAdminFilter, setHeatAdminFilter] = useState<'todos' | 'revisadas' | 'pendientes'>('todos');
   const [heatSort, setHeatSort] = useState<'nombre' | 'estado'>('nombre');
   const [selectedHeatDate, setSelectedHeatDate] = useState<string>(TODAY);
 
@@ -128,6 +132,49 @@ export default function AdminPanel() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ── Doble countdown para el día seleccionado ──────────────────────────────
+  useEffect(() => {
+    const selTask = tareas.find(t => t.fecha_tarea === selectedHeatDate);
+    if (!selTask) { setHeatCountdown(''); setHeatRevCountdown(''); return; }
+    const created = new Date(selTask.created_at || selTask.fecha_tarea + 'T10:00:00Z');
+    const expiry = new Date(created.getTime() + (selTask.horas_duracion || 24) * 3600000);
+    const revHours = selTask.horas_revision || 0;
+    const revDeadline = revHours > 0 ? new Date(expiry.getTime() - revHours * 3600000) : null;
+
+    const tick = () => {
+      const now = Date.now();
+      const diff = expiry.getTime() - now;
+      if (diff <= 0) { setHeatCountdown('Expirado'); }
+      else {
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        setHeatCountdown(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
+      }
+      if (revDeadline) {
+        const rd = revDeadline.getTime() - now;
+        if (rd <= 0) setHeatRevCountdown('Tiempo de revisión cerrado');
+        else {
+          const h = Math.floor(rd / 3600000);
+          const m = Math.floor((rd % 3600000) / 60000);
+          const s = Math.floor((rd % 60000) / 1000);
+          setHeatRevCountdown(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
+        }
+      } else { setHeatRevCountdown(''); }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [selectedHeatDate, tareas]);
+
+  // ── Guardar nombre de tarea ───────────────────────────────────────────────
+  const saveTaskTitle = async () => {
+    if (!editingTaskTitle) return;
+    await supabase.from('tareas').update({ titulo: editingTaskTitle.titulo }).eq('id', editingTaskTitle.id);
+    setTareas(prev => prev.map(t => t.id === editingTaskTitle.id ? { ...t, titulo: editingTaskTitle.titulo } : t));
+    setEditingTaskTitle(null);
   };
 
   const loadUsers = async () => {
@@ -321,7 +368,8 @@ export default function AdminPanel() {
     }
 
     const { data: tarea, error } = await supabase.from('tareas').insert({
-      titulo, horas_duracion: newTask.horas_duracion, material_nuevo: newTask.material_nuevo, activa: true, fecha_tarea: TODAY
+      titulo, horas_duracion: newTask.horas_duracion, horas_revision: newTask.horas_revision || 0,
+      material_nuevo: newTask.material_nuevo, activa: true, fecha_tarea: TODAY
     }).select().single();
 
     if (error || !tarea) { alert('Error al crear tarea: ' + error?.message); setCreatingTask(false); return; }
@@ -358,7 +406,7 @@ export default function AdminPanel() {
 
     await supabase.from('revisiones').insert([...selfRows, ...auditRows]);
 
-    setNewTask({ titulo: '', horas_duracion: 24, material_nuevo: '' });
+    setNewTask({ titulo: '', horas_duracion: 24, horas_revision: 0, material_nuevo: '' });
     await Promise.all([loadTareas(), loadHeatMap()]);
     setCreatingTask(false);
     alert(`"${titulo}" creada y asignada a ${proms.length} promotores ✓`);
@@ -367,7 +415,6 @@ export default function AdminPanel() {
   // ── Mapa calor: override ─────────────────────────────────────────────────
   const overrideColor = async (revId: string | null, color: EstadoColor) => {
     if (!revId) return alert('Este usuario no tiene entrada para hoy.');
-    if (!window.confirm(`¿Forzar color a ${COLOR_META[color].label}?`)) return;
     await supabase.from('revisiones').update({ admin_override: color }).eq('id', revId);
     loadHeatMap();
   };
@@ -375,34 +422,49 @@ export default function AdminPanel() {
   // ── Mapa de calor: filtros ─────────────────────────────────────────────────
   const getFilteredHeat = () => {
     let list = [...heatData];
+    const date = selectedHeatDate;
+
     if (heatColorFilter !== 'todos') {
       list = list.filter(row => {
-        const selfRev = row.dias[TODAY]?.self;
+        const selfRev = row.dias[date]?.self;
         const status = (selfRev?.admin_override || selfRev?.submission_status || 'rojo') as EstadoColor;
         return status === heatColorFilter;
       });
     }
+
+    if (heatAdminFilter === 'revisadas') {
+      list = list.filter(row => !!row.dias[date]?.self?.admin_override);
+    } else if (heatAdminFilter === 'pendientes') {
+      list = list.filter(row => !row.dias[date]?.self?.admin_override);
+    }
+
     if (heatSort === 'nombre') {
       list.sort((a, b) => (a.promotor?.nombre || '').localeCompare(b.promotor?.nombre || ''));
     } else {
-      // Orden inteligente por estado real (prioridad de acción)
       list.sort((a, b) => {
         const getScore = (row: any) => {
-          const dia = row.dias[TODAY] || { self: null, asAuditor: [] };
+          const dia = row.dias[date] || { self: null, asAuditor: [] };
           const status = (dia.self?.admin_override || dia.self?.submission_status || 'rojo') as EstadoColor;
           const hasPublished = status !== 'rojo';
           const pendingAuditsCount = (dia.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
-          
-          if (!hasPublished && pendingAuditsCount > 0) return 1; // Máxima prioridad (rojo + debe revisar)
-          if (!hasPublished && pendingAuditsCount === 0) return 2; // (rojo + ya revisó)
-          if (hasPublished && pendingAuditsCount > 0 && status !== 'verde') return 3; // (amarillo + debe revisar)
-          if (hasPublished && pendingAuditsCount === 0 && status !== 'verde') return 4; // (amarillo + ya revisó)
-          if (status === 'verde' && pendingAuditsCount > 0) return 5; // (verde + debe revisar)
-          return 6; // Verde + ya revisó (todo OK, va al fondo)
+          if (!hasPublished && pendingAuditsCount > 0) return 1;
+          if (!hasPublished && pendingAuditsCount === 0) return 2;
+          if (hasPublished && pendingAuditsCount > 0 && status !== 'verde') return 3;
+          if (hasPublished && pendingAuditsCount === 0 && status !== 'verde') return 4;
+          if (status === 'verde' && pendingAuditsCount > 0) return 5;
+          return 6;
         };
         return getScore(a) - getScore(b);
       });
     }
+
+    // Admin-reviewed rows go to bottom
+    list.sort((a, b) => {
+      const aRev = !!a.dias[date]?.self?.admin_override;
+      const bRev = !!b.dias[date]?.self?.admin_override;
+      return aRev === bRev ? 0 : aRev ? 1 : -1;
+    });
+
     return list;
   };
 
@@ -648,11 +710,19 @@ export default function AdminPanel() {
                     <input type="text" value={newTask.titulo} onChange={e => setNewTask(t => ({ ...t, titulo: e.target.value }))}
                       placeholder={`Tarea del día ${formatDate(TODAY)}`}
                       className="flex-1 min-w-[200px] bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500/60 outline-none transition-all" />
-                    <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5">
-                      <span className="text-xs text-gray-500 font-semibold">Horas:</span>
+                    <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5" title="Duración total de la tarea">
+                      <span className="text-xs text-gray-500 font-semibold">⏰ Duración:</span>
                       <input type="number" min={1} max={72} value={newTask.horas_duracion}
                         onChange={e => setNewTask(t => ({ ...t, horas_duracion: parseInt(e.target.value) }))}
                         className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
+                      <span className="text-xs text-gray-600">h</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-neutral-950 border border-yellow-500/20 rounded-xl px-4 py-2.5" title="Horas ANTES de expirar en que se cierra la revisión (ej: 4 = revisión a las 20h si la tarea dura 24h)">
+                      <span className="text-xs text-yellow-600 font-semibold">🔔 Cierre revisión:</span>
+                      <input type="number" min={0} max={newTask.horas_duracion - 1} value={newTask.horas_revision}
+                        onChange={e => setNewTask(t => ({ ...t, horas_revision: parseInt(e.target.value) || 0 }))}
+                        className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
+                      <span className="text-xs text-gray-600">h antes</span>
                     </div>
                   </div>
                   <button onClick={crearTarea} disabled={creatingTask}
@@ -707,119 +777,195 @@ export default function AdminPanel() {
 
               {/* DÍA SELECCIONADO (TOP) */}
               <div className="mb-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${selectedHeatDate === TODAY ? 'bg-blue-400 animate-pulse' : 'bg-gray-400'}`} />
-                    {selectedHeatDate === TODAY ? 'Hoy' : 'Día seleccionado'} — {formatDate(selectedHeatDate)}
+                {/* Header con título editable, contadores y controles */}
+                <div className="flex flex-col gap-3 mb-4 p-4 bg-neutral-950/40 border border-white/8 rounded-xl">
+                  {/* Fila 1: Fecha + Título editable */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${selectedHeatDate === TODAY ? 'bg-blue-400 animate-pulse' : 'bg-gray-500'}`} />
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{selectedHeatDate === TODAY ? 'HOY' : 'Día seleccionado'} — {formatDate(selectedHeatDate)}</span>
+
+                    {/* Título editable */}
                     {(() => {
                       const selTask = tareas.find(t => t.fecha_tarea === selectedHeatDate);
-                      if (selTask) return <span className="text-gray-500 ml-1">({selTask.titulo})</span>;
-                      return null;
+                      if (!selTask) return <span className="text-gray-600 text-xs">Sin tarea</span>;
+                      if (editingTaskTitle?.id === selTask.id) {
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              value={editingTaskTitle.titulo}
+                              onChange={e => setEditingTaskTitle(prev => prev ? { ...prev, titulo: e.target.value } : null)}
+                              onKeyDown={e => { if (e.key === 'Enter') saveTaskTitle(); if (e.key === 'Escape') setEditingTaskTitle(null); }}
+                              className="bg-neutral-800 border border-blue-500/60 rounded-lg px-2 py-0.5 text-xs outline-none text-white w-52"
+                              autoFocus
+                            />
+                            <button onClick={saveTaskTitle} className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white font-bold px-2 py-0.5 rounded-lg">✓</button>
+                            <button onClick={() => setEditingTaskTitle(null)} className="text-[10px] text-gray-500 hover:text-white px-1">✕</button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <button onClick={() => setEditingTaskTitle({ id: selTask.id, titulo: selTask.titulo })}
+                          className="text-xs text-gray-400 hover:text-white border border-transparent hover:border-white/20 px-2 py-0.5 rounded-lg transition-all flex items-center gap-1">
+                          ✏️ {selTask.titulo}
+                        </button>
+                      );
                     })()}
-                    {heatColorFilter !== 'todos' && (
-                      <span className="text-[10px] font-normal text-gray-600">
-                        ({getFilteredHeat().length} con estado {COLOR_META[heatColorFilter].label})
-                      </span>
+                  </div>
+
+                  {/* Fila 2: Contadores + Añadir horas */}
+                  <div className="flex flex-wrap items-center gap-4">
+                    {heatCountdown && (
+                      <div className="flex items-center gap-2">
+                        <Clock size={12} className={heatCountdown === 'Expirado' ? 'text-red-400' : 'text-gray-400'} />
+                        <span className="text-[10px] text-gray-500 uppercase font-semibold">Expira en</span>
+                        <span className={`font-mono font-bold text-sm ${heatCountdown === 'Expirado' ? 'text-red-400' : 'text-white'}`}>{heatCountdown}</span>
+                      </div>
                     )}
-                  </h3>
-                  
-                  {/* Controles para añadir horas al día seleccionado */}
-                  {tareas.find(t => t.fecha_tarea === selectedHeatDate) && (
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="number" 
-                        id={`hours_${selectedHeatDate}`}
-                        defaultValue={12}
-                        min={1} 
-                        className="w-16 bg-neutral-950 border border-white/10 rounded-lg px-2 py-1 text-xs text-center outline-none focus:border-blue-500/60 transition-colors text-white" 
-                        title="Cantidad de horas a añadir"
-                      />
-                      <button 
-                        onClick={() => {
-                          const val = parseInt((document.getElementById(`hours_${selectedHeatDate}`) as HTMLInputElement).value) || 0;
-                          const tId = tareas.find(t => t.fecha_tarea === selectedHeatDate)?.id;
-                          if (tId && val > 0) addHours(tId, val);
-                        }}
-                        className="bg-neutral-800 hover:bg-neutral-700 text-blue-400 font-bold px-3 py-1 text-xs rounded-lg transition-colors border border-blue-500/20 whitespace-nowrap flex items-center gap-1.5"
-                      >
-                        <Clock size={12} /> Añadir hora
+                    {heatRevCountdown && (
+                      <div className="flex items-center gap-2 border-l border-white/10 pl-4">
+                        <span className="text-[10px] text-yellow-500 uppercase font-semibold">🔔 Cierre revisión</span>
+                        <span className={`font-mono font-bold text-sm ${heatRevCountdown.includes('cerrado') ? 'text-red-400' : 'text-yellow-400'}`}>{heatRevCountdown}</span>
+                      </div>
+                    )}
+                    {tareas.find(t => t.fecha_tarea === selectedHeatDate) && (
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        <input
+                          type="number"
+                          id={`hours_${selectedHeatDate}`}
+                          defaultValue={4}
+                          min={1}
+                          className="w-14 bg-neutral-800 border border-white/10 rounded-lg px-2 py-1 text-xs text-center outline-none focus:border-blue-500/60 text-white"
+                          title="Horas a añadir"
+                        />
+                        <button
+                          onClick={() => {
+                            const val = parseInt((document.getElementById(`hours_${selectedHeatDate}`) as HTMLInputElement).value) || 0;
+                            const tId = tareas.find(t => t.fecha_tarea === selectedHeatDate)?.id;
+                            if (tId && val > 0) addHours(tId, val);
+                          }}
+                          className="bg-neutral-800 hover:bg-neutral-700 text-blue-400 font-bold px-3 py-1 text-xs rounded-lg transition-colors border border-blue-500/20 whitespace-nowrap flex items-center gap-1.5">
+                          <Clock size={11} /> +Horas
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fila 3: Filtros de admin */}
+                  <div className="flex flex-wrap gap-2">
+                    {(['todos', 'revisadas', 'pendientes'] as const).map(f => (
+                      <button key={f} onClick={() => setHeatAdminFilter(f)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all capitalize ${heatAdminFilter === f ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white bg-neutral-900 border border-white/8'}`}>
+                        {f === 'todos' ? 'Todos' : f === 'revisadas' ? '✅ Revisadas por admin' : '⏳ Pendientes de revisión'}
                       </button>
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-gray-500 text-xs border-b border-white/8">
-                        <th className="text-left pb-2 pr-4 font-semibold">Promotor</th>
-                        <th className="text-center pb-2 font-semibold">Color</th>
-                        <th className="text-left pb-2 px-4 font-semibold">Debe revisar a</th>
-                        <th className="text-left pb-2 pl-4 font-semibold text-xs">Estado Real</th>
-                        <th className="text-right pb-2 font-semibold">Acciones</th>
+                      <tr className="text-gray-500 text-xs border-b border-white/8 bg-neutral-950/30">
+                        <th className="text-center pb-2 px-2 font-semibold w-8" title="¿Activó su switch?">Switch</th>
+                        <th className="text-left pb-2 px-3 font-semibold">Promotor</th>
+                        <th className="text-left pb-2 px-3 font-semibold">Debe revisar a</th>
+                        <th className="text-left pb-2 px-3 font-semibold">Color · Estado Real</th>
+                        <th className="text-center pb-2 px-3 font-semibold">Rev. Admin</th>
+                        <th className="text-right pb-2 px-2 font-semibold">Ver</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {getFilteredHeat().map(row => {
                         const dia = row.dias[selectedHeatDate] || { self: null, asAuditor: [] };
                         const selfRev = dia.self;
-                        const status = (selfRev?.admin_override || selfRev?.submission_status || 'rojo') as EstadoColor;
-                        const hasPublished = status !== 'rojo';
+                        const rawStatus = (selfRev?.submission_status || 'rojo') as EstadoColor;
+                        const adminOverride = selfRev?.admin_override as EstadoColor | null;
+                        const status = adminOverride || rawStatus;
+                        const hasPublished = rawStatus !== 'rojo';
+                        const hasAdminReview = !!adminOverride;
                         const pendingAudits = (dia.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
-                        
+
                         let stateText = '';
-                        if (status === 'verde' || status === 'morado' || status === 'naranja') stateText = pendingAudits > 0 ? 'Misión lista, pero debe revisar' : '✅ 100% OK';
-                        else if (hasPublished) stateText = pendingAudits > 0 ? 'Publicó, espera validación y debe revisar' : 'Publicó, espera validación';
-                        else stateText = pendingAudits > 0 ? 'Falta publicar y revisar' : 'Falta publicar';
+                        if (status === 'verde' || status === 'morado') stateText = pendingAudits > 0 ? 'Aprobado, debe revisar' : '✅ 100% OK';
+                        else if (status === 'naranja') stateText = 'Justificado';
+                        else if (hasPublished) stateText = pendingAudits > 0 ? 'Publicó · Espera revisión' : 'Publicó · Sin validar';
+                        else stateText = pendingAudits > 0 ? 'Sin publicar · Debe revisar' : 'Sin publicar';
+
+                        const rowBg = hasAdminReview ? 'bg-blue-950/20 border-l-2 border-blue-500/40' : '';
 
                         return (
-                          <tr key={row.promotor?.id} className="hover:bg-neutral-800/20 transition-colors">
-                            <td className="py-3 pr-4">
+                          <tr key={row.promotor?.id} className={`hover:bg-neutral-800/20 transition-colors ${rowBg}`}>
+                            {/* COL 1: Switch propio */}
+                            <td className="py-3 px-2 text-center">
+                              <span className={`inline-block w-3 h-3 rounded-full ${hasPublished ? 'bg-green-500' : 'bg-red-500'}`}
+                                title={hasPublished ? 'Activó su switch' : 'Switch apagado'} />
+                            </td>
+                            {/* COL 2: Promotor */}
+                            <td className="py-3 px-3">
                               <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
-                                className="font-semibold text-white hover:text-blue-400 transition-colors">
+                                className="font-semibold text-white hover:text-blue-400 transition-colors text-xs">
                                 {row.promotor?.nombre}
                               </a>
-                              <span className="text-gray-600 text-[10px] ml-1.5 opacity-50 block md:inline">@{row.promotor?.instagram}</span>
+                              <span className="text-gray-600 text-[10px] block">@{row.promotor?.instagram}</span>
                             </td>
-                            <td className="py-3 text-center">
-                              <HeatCell revId={selfRev?.id || null} currentStatus={status} onOverride={overrideColor} />
+                            {/* COL 3: Debe revisar a */}
+                            <td className="py-3 px-3">
+                              <div className="flex flex-col gap-1 min-w-[130px]">
+                                {(dia.asAuditor || []).map((a: any, i: number) => {
+                                  let icon = '⏳'; let iconClass = 'text-yellow-400';
+                                  if (a.voto === 'SI') { icon = '🟢'; iconClass = 'text-green-400'; }
+                                  else if (a.voto === 'NO') { icon = '🔴'; iconClass = 'text-red-400'; }
+                                  else if (a.voto === 'JUSTIFICADO') { icon = '🟠'; iconClass = 'text-orange-400'; }
+                                  return (
+                                    <div key={i} className="flex items-center gap-1.5 text-[11px]">
+                                      <span className={iconClass}>{icon}</span>
+                                      <span className="text-gray-300 font-medium">{a.target?.nombre || a.target?.instagram || '—'}</span>
+                                    </div>
+                                  );
+                                })}
+                                {(!dia.asAuditor || dia.asAuditor.length === 0) && <span className="text-gray-600 text-[10px]">—</span>}
+                              </div>
                             </td>
-                            <td className="py-3 px-4">
-                              <div className="flex flex-col gap-1">
-                                {(dia.asAuditor || []).map((a: any, i: number) => (
-                                  <div key={i} className="flex items-center gap-1.5 text-[11px]">
-                                    <span className={a.voto === 'PENDIENTE' ? 'text-yellow-500' : 'text-green-500'}>
-                                      {a.voto === 'PENDIENTE' ? '⏳' : '✅'}
-                                    </span>
-                                    <span className={a.voto === 'PENDIENTE' ? 'text-gray-300' : 'text-gray-600'}>
-                                      {a.target?.nombre || a.target?.instagram}
-                                    </span>
-                                  </div>
+                            {/* COL 4: Color + Estado Real */}
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-3 h-3 rounded-full flex-shrink-0 ${COLOR_META[status].bg}`} title={COLOR_META[status].label} />
+                                <span className="text-[11px] text-gray-300 font-medium">{stateText}</span>
+                              </div>
+                            </td>
+                            {/* COL 5: Revisión Admin */}
+                            <td className="py-3 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {(['verde', 'rojo', 'naranja'] as EstadoColor[]).map(col => (
+                                  <button key={col}
+                                    onClick={() => {
+                                      if (!selfRev?.id) return alert('Sin datos para este promotor en este día.');
+                                      const isSame = adminOverride === col;
+                                      overrideColor(selfRev.id, isSame ? rawStatus : col);
+                                    }}
+                                    className={`w-5 h-5 rounded-full transition-all ${COLOR_META[col].bg} ${adminOverride === col ? 'ring-2 ring-white ring-offset-1 ring-offset-neutral-900 scale-110' : 'opacity-40 hover:opacity-100'}`}
+                                    title={`Marcar como ${COLOR_META[col].label}${adminOverride === col ? ' (click para quitar)' : ''}`}
+                                  />
                                 ))}
-                                {(!dia.asAuditor || dia.asAuditor.length === 0) && (
-                                  <span className="text-gray-600 text-[10px]">-</span>
+                                {adminOverride && (
+                                  <button onClick={() => selfRev?.id && overrideColor(selfRev.id, rawStatus)}
+                                    className="w-4 h-4 rounded-full bg-neutral-600 hover:bg-neutral-500 flex items-center justify-center text-[8px] font-bold ml-0.5"
+                                    title="Quitar revisión admin">✕</button>
                                 )}
                               </div>
                             </td>
-                            <td className="py-3 pl-4">
-                              <div className="flex items-center gap-2">
-                                <span className={`w-1.5 h-1.5 rounded-full ${pendingAudits > 0 || !hasPublished ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
-                                <span className={`text-[11px] font-semibold ${pendingAudits > 0 || !hasPublished ? 'text-gray-300' : 'text-green-500'}`}>
-                                  {stateText}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-3 text-right">
+                            {/* COL 6: Ver panel */}
+                            <td className="py-3 px-2 text-right">
                               <button onClick={() => setImpersonated(row.promotor)}
                                 className="inline-flex items-center justify-center bg-white/5 hover:bg-white/15 border border-white/10 text-white rounded-lg p-1.5 transition-colors"
                                 title={`Ver panel como ${row.promotor?.nombre}`}>
-                                <Eye size={14} />
+                                <Eye size={13} />
                               </button>
                             </td>
                           </tr>
                         );
                       })}
                       {getFilteredHeat().length === 0 && (
-                        <tr><td colSpan={5} className="py-8 text-center text-gray-600 text-xs">
+                        <tr><td colSpan={6} className="py-8 text-center text-gray-600 text-xs">
                           {heatColorFilter !== 'todos' ? `No hay promotores con estado "${COLOR_META[heatColorFilter].label}" en esta fecha.` : 'No hay datos para esta fecha.'}
                         </td></tr>
                       )}
