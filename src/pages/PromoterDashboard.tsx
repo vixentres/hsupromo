@@ -214,17 +214,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     }
   };
 
-  const handleVerMaterial = async () => {
-    try { await copyLink(); } catch (_) {}
-    if (materialUrl) window.open(materialUrl, '_blank', 'noopener,noreferrer');
-  };
 
-  const handleLinkPublicitario = async () => {
-    // Usa el link de la tarea o el default de HSU
-    const linkUrl = tarea?.link_publicitario || 'https://www.instagram.com/hsuevents.cl/';
-    try { await copyLink(); } catch (_) {}
-    window.open(linkUrl, '_blank', 'noopener,noreferrer');
-  };
 
   const getInstagramUrl = (ig: string) =>
     linkMode === 'historias' ? `https://www.instagram.com/stories/${ig}/` : `https://www.instagram.com/${ig}/`;
@@ -375,8 +365,11 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
               {/* Botones de acción */}
               <div className="space-y-2">
                 {materialUrl && (
-                  <button
-                    onClick={handleVerMaterial}
+                  <a
+                    href={materialUrl || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => { try { copyLink(); } catch(_) {} }}
                     className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer"
                   >
                     <Folder size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
@@ -384,11 +377,14 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                     <div className="absolute right-4 flex items-center gap-1 text-[10px] bg-neutral-950/40 px-2 py-1 rounded border border-white/10 text-gray-400">
                       <LinkIcon size={10} /> Copia tu link
                     </div>
-                  </button>
+                  </a>
                 )}
                 {tarea.link_publicitario && (
-                  <button
-                    onClick={handleLinkPublicitario}
+                  <a
+                    href={tarea.link_publicitario || 'https://www.instagram.com/hsuevents.cl/'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => { try { copyLink(); } catch(_) {} }}
                     className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-purple-900/20 hover:bg-purple-900/30 border border-purple-500/20 text-purple-300 font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer"
                   >
                     <Megaphone size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
@@ -396,7 +392,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                     <div className="absolute right-4 flex items-center gap-1 text-[10px] bg-neutral-950/40 px-2 py-1 rounded border border-white/10 text-gray-400">
                       <LinkIcon size={10} /> Copia tu link
                     </div>
-                  </button>
+                  </a>
                 )}
               </div>
             </div>
