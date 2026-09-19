@@ -30,7 +30,7 @@ export const getCountdown = (targetDate: string | Date): string => {
 };
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
-export type Rol = 'promotor' | 'admin';
+export type Rol = 'promotor' | 'admin' | 'vendedor';
 export type EstadoColor = 'rojo' | 'amarillo' | 'verde' | 'morado' | 'naranja';
 export type VotoAuditoria = 'SI' | 'NO' | 'JUSTIFICADO' | 'PENDIENTE';
 
@@ -43,6 +43,7 @@ export interface Promotor {
   clave: string;
   instagram: string;
   rol: Rol;
+  ticketmaster_url?: string;
   created_at?: string;
 }
 
@@ -54,6 +55,7 @@ export interface Tarea {
   horas_revision: number;
   activa: boolean;
   fecha_tarea: string;
+  link_publicitario?: string;
   created_at?: string;
 }
 

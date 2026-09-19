@@ -89,13 +89,14 @@ export default function AdminPanel() {
   const [editedRows, setEditedRows] = useState<Record<string, Partial<Promotor>>>({});
   const [savingUsers, setSavingUsers] = useState(false);
   const [userSearch, setUserSearch] = useState('');
-  const [userRolFilter, setUserRolFilter] = useState<'todos' | 'promotor' | 'admin'>('todos');
+  const [userRolFilter, setUserRolFilter] = useState<'todos' | 'promotor' | 'admin' | 'vendedor'>('todos');
   const [userSort, setUserSort] = useState<{ field: keyof Promotor; dir: 'asc' | 'desc' }>({ field: 'nombre', dir: 'asc' });
   const [copied, setCopied] = useState<string | null>(null);
 
   // ── Tareas ────────────────────────────────────────────────────────────────
   const [tareas, setTareas] = useState<Tarea[]>([]);
-  const [newTask, setNewTask] = useState({ titulo: '', horas_duracion: 24, horas_revision: 0, material_nuevo: '' });
+  const [newTask, setNewTask] = useState({ titulo: '', horas_duracion: 24, horas_revision: 0, material_nuevo: '', link_publicitario: 'https://www.instagram.com/hsuevents.cl/' });
+  const [showNewTaskLink, setShowNewTaskLink] = useState(false);
   const [creatingTask, setCreatingTask] = useState(false);
   const [editingTaskTitle, setEditingTaskTitle] = useState<{ id: string; titulo: string } | null>(null);
   const [heatCountdown, setHeatCountdown] = useState('');
@@ -200,8 +201,8 @@ export default function AdminPanel() {
   };
 
   const loadHeatMap = async () => {
-    // 1. Obtener solo los promotores (excluir admins del mapa)
-    const { data: proms } = await supabase.from('promotores').select('id, nombre, instagram').eq('rol', 'promotor').order('created_at');
+    // 1. Obtener promotores Y vendedores (excluir solo admins del mapa)
+    const { data: proms } = await supabase.from('promotores').select('id, nombre, instagram, rol').in('rol', ['promotor', 'vendedor']).order('created_at');
     if (!proms) return;
     
     // 2. Obtener tareas
@@ -362,20 +363,22 @@ export default function AdminPanel() {
     loadTareas();
   };
 
-  // ── Tareas: crear ─────────────────────────────────────────────────────────
   const crearTarea = async () => {
     setCreatingTask(true);
     const titulo = newTask.titulo.trim() || `Tarea del día ${formatDate(TODAY)}`;
     
-    // Solo promotores para la asignación
+    // Solo promotores para la asignación de revisiones cruzadas (no vendedores)
     const { data: promsData } = await supabase.from('promotores').select('id').eq('rol', 'promotor');
+    // Vendedores también participan en la tarea pero sin revisión cruzada
+    const { data: vendedoresData } = await supabase.from('promotores').select('id').eq('rol', 'vendedor');
+
     if (!promsData || promsData.length === 0) {
       alert('No hay promotores para asignar.');
       setCreatingTask(false);
       return;
     }
 
-    // Algoritmo aleatorio (Fisher-Yates Shuffle) para no asignar siempre a los mismos colegas
+    // Algoritmo aleatorio (Fisher-Yates Shuffle)
     const proms = [...promsData];
     for (let i = proms.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -384,7 +387,8 @@ export default function AdminPanel() {
 
     const { data: tarea, error } = await supabase.from('tareas').insert({
       titulo, horas_duracion: newTask.horas_duracion, horas_revision: newTask.horas_revision || 0,
-      material_nuevo: newTask.material_nuevo, activa: true, fecha_tarea: TODAY
+      material_nuevo: newTask.material_nuevo, activa: true, fecha_tarea: TODAY,
+      link_publicitario: newTask.link_publicitario || 'https://www.instagram.com/hsuevents.cl/'
     }).select().single();
 
     if (error || !tarea) { alert('Error al crear tarea: ' + error?.message); setCreatingTask(false); return; }
@@ -398,33 +402,27 @@ export default function AdminPanel() {
 
     const numAuditores = Math.min(newTaskAuditores || 2, proms.length - 1);
 
+    // Promotores: revisión cruzada entre sí
     proms.forEach((p, i) => {
-      selfRows.push({
-        tarea_id: tareaId,
-        promotor_id: p.id,
-        auditor_id: p.id,
-        voto: 'SI', // Placeholder para su propia "auditoría"
-        submission_status: 'rojo'
-      });
-
+      selfRows.push({ tarea_id: tareaId, promotor_id: p.id, auditor_id: p.id, voto: 'SI', submission_status: 'rojo' });
       for (let k = 1; k <= numAuditores; k++) {
         const audIdx = (i + k) % proms.length;
-        auditRows.push({
-          tarea_id: tareaId,
-          promotor_id: proms[audIdx].id, // Quien es auditado
-          auditor_id: p.id,              // Quien audita
-          voto: 'PENDIENTE',
-          submission_status: 'rojo'
-        });
+        auditRows.push({ tarea_id: tareaId, promotor_id: proms[audIdx].id, auditor_id: p.id, voto: 'PENDIENTE', submission_status: 'rojo' });
       }
+    });
+
+    // Vendedores: solo su propia entrada (sin auditores cruzados)
+    (vendedoresData || []).forEach(v => {
+      selfRows.push({ tarea_id: tareaId, promotor_id: v.id, auditor_id: v.id, voto: 'SI', submission_status: 'rojo' });
     });
 
     await supabase.from('revisiones').insert([...selfRows, ...auditRows]);
 
-    setNewTask({ titulo: '', horas_duracion: 24, horas_revision: 0, material_nuevo: '' });
+    setNewTask({ titulo: '', horas_duracion: 24, horas_revision: 0, material_nuevo: '', link_publicitario: 'https://www.instagram.com/hsuevents.cl/' });
+    setShowNewTaskLink(false);
     await Promise.all([loadTareas(), loadHeatMap()]);
     setCreatingTask(false);
-    alert(`"${titulo}" creada y asignada a ${proms.length} promotores ✓`);
+    alert(`"${titulo}" creada y asignada a ${proms.length} promotores y ${(vendedoresData || []).length} vendedores ✓`);
   };
 
   // ── Mapa calor: override (toggle — mismo color = quita el override) ──────
@@ -507,7 +505,7 @@ export default function AdminPanel() {
   if (!user || user.rol !== 'admin') return null;
 
   if (impersonated) {
-    return <PromoterDashboard impersonatedUser={impersonated} onExitImpersonation={() => setImpersonated(null)} />;
+    return <PromoterDashboard impersonatedUser={impersonated} onExitImpersonation={() => setImpersonated(null)} allowSwitchEdit={true} />;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -552,61 +550,56 @@ export default function AdminPanel() {
         {activeTab === 'users' && (
           <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
             {/* Toolbar */}
-            <div className="px-5 py-4 border-b border-white/8 flex flex-wrap items-center gap-3">
-              {/* Búsqueda */}
-              <div className="relative flex-1 min-w-[200px]">
+            <div className="px-4 sm:px-5 py-4 border-b border-white/8 flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[160px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                <input
-                  type="text" value={userSearch} onChange={e => setUserSearch(e.target.value)}
-                  placeholder="Buscar por nombre, correo o @..."
-                  className="w-full bg-neutral-950 border border-white/10 rounded-xl pl-8 pr-3 py-2 text-sm outline-none focus:border-blue-500/50 transition-all"
-                />
+                <input type="text" value={userSearch} onChange={e => setUserSearch(e.target.value)}
+                  placeholder="Buscar nombre, correo o @..."
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl pl-8 pr-3 py-2 text-sm outline-none focus:border-blue-500/50 transition-all" />
               </div>
-
-              {/* Filtro rol */}
               <div className="flex gap-1 bg-neutral-950 border border-white/10 p-1 rounded-xl">
-                {(['todos', 'promotor', 'admin'] as const).map(r => (
+                {(['todos', 'promotor', 'vendedor', 'admin'] as const).map(r => (
                   <button key={r} onClick={() => setUserRolFilter(r)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all capitalize ${userRolFilter === r ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all capitalize ${userRolFilter === r ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
                     {r}
                   </button>
                 ))}
               </div>
-
               <div className="flex items-center gap-2 ml-auto">
-                <button onClick={addRow}
-                  className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white font-bold py-2 px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
-                  <Plus size={14} /> Añadir
+                <button onClick={addRow} className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
+                  <Plus size={14} /> <span className="hidden sm:inline">Añadir</span>
                 </button>
                 <button onClick={saveUsers} disabled={savingUsers || Object.keys(editedRows).length === 0}
-                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
+                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
                   <Save size={14} /> {savingUsers ? 'Guardando...' : `Guardar${Object.keys(editedRows).length > 0 ? ` (${Object.keys(editedRows).length})` : ''}`}
                 </button>
               </div>
             </div>
 
-            {/* Tabla */}
+            {/* Tabla con primera columna sticky */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-gray-500 text-xs border-b border-white/8 bg-neutral-950/50">
-                    {([
-                      ['nombre', 'Nombre'],
-                      ['rut', 'RUT'],
-                      ['correo', 'Correo'],
-                      ['telefono', 'Teléfono'],
-                      ['clave', 'Contraseña'],
-                      ['instagram', 'Instagram'],
-                    ] as const).map(([field, label]) => (
-                      <th key={field} className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:text-white transition-colors"
-                        onClick={() => toggleSort(field as keyof Promotor)}>
-                        <span className="flex items-center gap-1">{label}<SortIcon field={field as keyof Promotor} /></span>
-                      </th>
-                    ))}
-                    <th className="px-4 py-3 text-left font-semibold cursor-pointer select-none hover:text-white" onClick={() => toggleSort('rol')}>
+                    <th className="px-4 py-3 text-left font-semibold sticky left-0 bg-neutral-950 z-10 min-w-[130px] cursor-pointer select-none hover:text-white"
+                      onClick={() => toggleSort('correo')}>
+                      <span className="flex items-center gap-1">Correo<SortIcon field="correo" /></span>
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold min-w-[90px] cursor-pointer select-none hover:text-white" onClick={() => toggleSort('clave')}>
+                      <span className="flex items-center gap-1">Clave<SortIcon field="clave" /></span>
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold min-w-[120px] cursor-pointer select-none hover:text-white" onClick={() => toggleSort('nombre')}>
+                      <span className="flex items-center gap-1">Nombre<SortIcon field="nombre" /></span>
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold min-w-[110px] cursor-pointer select-none hover:text-white" onClick={() => toggleSort('instagram')}>
+                      <span className="flex items-center gap-1">Instagram<SortIcon field="instagram" /></span>
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold min-w-[100px]">Teléfono</th>
+                    <th className="px-4 py-3 text-left font-semibold min-w-[100px] cursor-pointer select-none hover:text-white" onClick={() => toggleSort('rol')}>
                       <span className="flex items-center gap-1">Rol<SortIcon field="rol" /></span>
                     </th>
-                    <th className="px-4 py-3 text-center font-semibold">Links</th>
+                    <th className="px-4 py-3 text-center font-semibold min-w-[80px]">Link Ref</th>
+                    <th className="px-4 py-3 text-left font-semibold min-w-[160px]">Link TM (Vendedor)</th>
                     <th className="px-4 py-3 w-8" />
                   </tr>
                 </thead>
@@ -616,33 +609,59 @@ export default function AdminPanel() {
                     const val = (f: keyof Promotor) => ((edited[f] ?? p[f]) || '') as string;
                     const isDirty = !!editedRows[p.id];
                     const ig = val('instagram');
+                    const rolColor = val('rol') === 'admin' ? 'text-blue-400' : val('rol') === 'vendedor' ? 'text-purple-400' : 'text-gray-300';
                     return (
                       <tr key={p.id} className={`group transition-colors ${isDirty ? 'bg-blue-900/10' : 'hover:bg-neutral-800/20'}`}>
-                        {(['nombre', 'rut', 'correo', 'telefono', 'clave', 'instagram'] as const).map(field => (
-                          <td key={field} className="px-3 py-1.5">
-                            <input type="text" value={val(field)} onChange={e => editCell(p.id, field, e.target.value)}
-                              className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-900/80 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[90px] text-sm" />
-                          </td>
-                        ))}
+                        {/* Correo — sticky */}
+                        <td className="px-3 py-1.5 sticky left-0 bg-neutral-900 group-hover:bg-neutral-800/40 z-10">
+                          <input type="text" value={val('correo')} onChange={e => editCell(p.id, 'correo', e.target.value)}
+                            className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[120px] text-sm" />
+                        </td>
+                        {/* Clave */}
+                        <td className="px-3 py-1.5">
+                          <input type="text" value={val('clave')} onChange={e => editCell(p.id, 'clave', e.target.value)}
+                            className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[80px] text-sm" />
+                        </td>
+                        {/* Nombre */}
+                        <td className="px-3 py-1.5">
+                          <input type="text" value={val('nombre')} onChange={e => editCell(p.id, 'nombre', e.target.value)}
+                            className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[100px] text-sm" />
+                        </td>
+                        {/* Instagram */}
+                        <td className="px-3 py-1.5">
+                          <input type="text" value={val('instagram')} onChange={e => editCell(p.id, 'instagram', e.target.value)}
+                            className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[90px] text-sm" />
+                        </td>
+                        {/* Teléfono */}
+                        <td className="px-3 py-1.5">
+                          <input type="text" value={val('telefono')} onChange={e => editCell(p.id, 'telefono', e.target.value)}
+                            className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[90px] text-sm" />
+                        </td>
+                        {/* Rol */}
                         <td className="px-3 py-1.5">
                           <select value={val('rol')} onChange={e => editCell(p.id, 'rol', e.target.value)}
-                            className="bg-neutral-800 border border-white/10 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-500/60">
+                            className={`bg-neutral-800 border border-white/10 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-500/60 ${rolColor}`}>
                             <option value="promotor">Promotor</option>
+                            <option value="vendedor">Vendedor</option>
                             <option value="admin">Admin</option>
                           </select>
                         </td>
-                        <td className="px-3 py-1.5">
-                          <div className="flex gap-1 justify-center">
-                            <button onClick={() => copyLink(ig, 'ref')}
-                              title="Copiar link de referido"
-                              className="text-[10px] font-bold text-gray-500 hover:text-green-400 bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
-                              {copied === ig + 'ref' ? '✓ Copiado' : '🔗 Ref'}
-                            </button>
-                          </div>
+                        {/* Link Ref */}
+                        <td className="px-3 py-1.5 text-center">
+                          <button onClick={() => copyLink(ig, 'ref')} title="Copiar link de referido"
+                            className="text-[10px] font-bold text-gray-500 hover:text-green-400 bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+                            {copied === ig + 'ref' ? '✓ Copiado' : '🔗 Ref'}
+                          </button>
                         </td>
+                        {/* Link TM personal (solo relevante para vendedores) */}
                         <td className="px-3 py-1.5">
-                          <button onClick={() => deleteRow(p.id)}
-                            className="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                          <input type="text" value={val('ticketmaster_url')} onChange={e => editCell(p.id, 'ticketmaster_url', e.target.value)}
+                            placeholder="https://tm.link/..."
+                            className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[140px] text-xs text-purple-300" />
+                        </td>
+                        {/* Delete */}
+                        <td className="px-3 py-1.5">
+                          <button onClick={() => deleteRow(p.id)} className="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
                             <Trash2 size={14} />
                           </button>
                         </td>
@@ -654,7 +673,7 @@ export default function AdminPanel() {
             </div>
             <div className="px-4 py-3 border-t border-white/8">
               <button onClick={addRow} className="flex items-center gap-2 text-gray-500 hover:text-white text-xs font-bold transition-colors hover:bg-white/5 px-3 py-2 rounded-lg">
-                <Plus size={14} /> Añadir promotor
+                <Plus size={14} /> Añadir integrante
               </button>
             </div>
           </div>
@@ -682,7 +701,7 @@ export default function AdminPanel() {
                     </div>
                   </div>
                   <div className="flex gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 bg-neutral-950 border border-yellow-500/20 rounded-xl px-4 py-2.5" title="Horas ANTES de expirar en que se cierra la revisión (ej: 4 = revisión a las 20h si la tarea dura 24h)">
+                    <div className="flex items-center gap-2 bg-neutral-950 border border-yellow-500/20 rounded-xl px-4 py-2.5" title="Horas ANTES de expirar en que se cierra la revisión">
                       <span className="text-xs text-yellow-600 font-semibold">🔔 Cierre revisión:</span>
                       <input type="number" min={0} max={newTask.horas_duracion - 1} value={newTask.horas_revision}
                         onChange={e => setNewTask(t => ({ ...t, horas_revision: parseInt(e.target.value) || 0 }))}
@@ -697,11 +716,33 @@ export default function AdminPanel() {
                     </div>
                   </div>
 
+                  {/* Link Publicitario */}
+                  <div className="border border-white/8 rounded-xl p-3 bg-neutral-950/30">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
+                        📢 Link Publicitario
+                        {newTask.link_publicitario && newTask.link_publicitario !== 'https://www.instagram.com/hsuevents.cl/' && (
+                          <span className="text-[9px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-1.5 py-0.5 rounded-full">Personalizado</span>
+                        )}
+                      </span>
+                      <button type="button" onClick={() => setShowNewTaskLink(v => !v)}
+                        className="text-[10px] font-bold text-gray-500 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-lg transition-colors">
+                        {showNewTaskLink ? 'Ocultar' : newTask.link_publicitario !== 'https://www.instagram.com/hsuevents.cl/' ? '🔗 Ver link' : '+ Cambiar link'}
+                      </button>
+                    </div>
+                    {showNewTaskLink && (
+                      <input type="text" value={newTask.link_publicitario}
+                        onChange={e => setNewTask(t => ({ ...t, link_publicitario: e.target.value }))}
+                        placeholder="https://www.instagram.com/hsuevents.cl/"
+                        className="w-full mt-2 bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-xs text-purple-300 focus:border-purple-500/60 outline-none transition-all" />
+                    )}
+                  </div>
+
                   <button onClick={crearTarea} disabled={creatingTask}
                     className="self-end bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 font-black py-2.5 px-6 rounded-xl text-sm flex items-center gap-2 transition-all">
                     {creatingTask
                       ? <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Creando...</>
-                      : <><Plus size={15} />Crear y Asignar Revisiones</>
+                      : <><Plus size={15} />Crear y Asignar</>
                     }
                   </button>
                 </div>
@@ -891,10 +932,13 @@ export default function AdminPanel() {
                             </td>
                             {/* COL 2: Promotor */}
                             <td className="py-3 px-3">
-                              <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
-                                className="font-semibold text-white hover:text-blue-400 transition-colors text-xs">
-                                {row.promotor?.nombre}
-                              </a>
+                              <div className="flex items-center gap-1">
+                                <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                                  className="font-semibold text-white hover:text-blue-400 transition-colors text-xs">
+                                  {row.promotor?.nombre}
+                                </a>
+                                {hasAdminReview && <span title="Auditado por Admin" className="text-sm leading-none">👑</span>}
+                              </div>
                               <span className="text-gray-600 text-[10px] block">@{row.promotor?.instagram}</span>
                             </td>
                             {/* COL 3: Debe revisar a */}

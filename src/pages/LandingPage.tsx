@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase, transformDriveUrl, getCountdown, type Config } from '../lib/supabase';
 
@@ -14,12 +14,21 @@ export default function LandingPage() {
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState('');
+  // Personal TM url for vendedores
+  const [vendedorTmUrl, setVendedorTmUrl] = useState<string | null>(null);
+
+  // Hidden banner click counter — random threshold between 3 and 5
+  const clickCountRef = useRef(0);
+  const clickThresholdRef = useRef(3 + Math.floor(Math.random() * 3)); // 3, 4 or 5
+  const lastClickRef = useRef(0);
 
   useEffect(() => { loadConfig(); }, []);
 
   useEffect(() => {
     if (!ref) return;
     registerMetric('visita');
+    // Fetch promotor to check if vendedor and get personal TM url
+    fetchPromotor();
   }, [ref]);
 
   // Ticker de cuenta regresiva al evento
@@ -31,6 +40,15 @@ export default function LandingPage() {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [config.fecha_evento]);
+
+  const fetchPromotor = async () => {
+    if (!ref) return;
+    const { data: promotor } = await supabase
+      .from('promotores').select('id, rol, ticketmaster_url').eq('instagram', ref).maybeSingle();
+    if (promotor?.rol === 'vendedor' && promotor?.ticketmaster_url) {
+      setVendedorTmUrl(promotor.ticketmaster_url);
+    }
+  };
 
   const loadConfig = async () => {
     const { data } = await supabase.from('config').select('*').eq('id', 1).single();
@@ -60,10 +78,31 @@ export default function LandingPage() {
     return `https://wa.me/${config.whatsapp_numero.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`;
   };
 
-  const waUrl = buildWhatsAppUrl();
-  const hasWA = !!waUrl;
-  const hasTM = !!config.ticketmaster_url;
+  // Banner multi-click hidden feature
+  const handleBannerClick = () => {
+    const now = Date.now();
+    // Reset if more than 4 seconds between clicks
+    if (now - lastClickRef.current > 4000) {
+      clickCountRef.current = 0;
+      // Re-randomize threshold each reset
+      clickThresholdRef.current = 3 + Math.floor(Math.random() * 3);
+    }
+    lastClickRef.current = now;
+    clickCountRef.current += 1;
 
+    if (clickCountRef.current >= clickThresholdRef.current) {
+      clickCountRef.current = 0;
+      clickThresholdRef.current = 3 + Math.floor(Math.random() * 3);
+      const waUrl = buildWhatsAppUrl();
+      if (waUrl) {
+        registerMetric('click_gratis');
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+    }
+  };
+
+  const tmUrl = vendedorTmUrl || config.ticketmaster_url;
+  const hasTM = !!tmUrl;
   const bannerUrl = transformDriveUrl(config.banner_url);
 
   // Formatear fecha del evento legible
@@ -78,8 +117,12 @@ export default function LandingPage() {
       <div className="w-full max-w-sm">
         <div className="bg-neutral-900 border border-white/8 rounded-3xl overflow-hidden shadow-2xl">
 
-          {/* Banner */}
-          <div className="relative w-full bg-neutral-800">
+          {/* Banner — función oculta: multi-click abre WhatsApp */}
+          <div
+            className="relative w-full bg-neutral-800 select-none"
+            onClick={handleBannerClick}
+            style={{ WebkitTapHighlightColor: 'transparent', cursor: 'default' }}
+          >
             {loading ? (
               <div className="h-48 flex items-center justify-center">
                 <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
@@ -88,8 +131,9 @@ export default function LandingPage() {
               <img
                 src={bannerUrl}
                 alt="Banner del evento"
-                className="w-full h-auto block"
+                className="w-full h-auto block pointer-events-none"
                 style={{ maxHeight: '480px', objectFit: 'contain' }}
+                draggable={false}
               />
             ) : (
               <div className="h-48 flex flex-col items-center justify-center gap-2 border-b border-white/8">
@@ -111,7 +155,7 @@ export default function LandingPage() {
           {/* CTAs */}
           <div className="p-6 space-y-3">
             <a
-              href={hasTM ? ensureAbsoluteUrl(config.ticketmaster_url) : '#'}
+              href={hasTM ? ensureAbsoluteUrl(tmUrl) : '#'}
               target={hasTM ? "_blank" : "_self"}
               rel="noopener noreferrer"
               onClick={(e) => {
@@ -124,24 +168,6 @@ export default function LandingPage() {
                 <path d="M20 12V6H4v6a2 2 0 0 0 0 4v6h16v-6a2 2 0 0 0 0-4z"/>
               </svg>
               Comprar en Ticketmaster
-            </a>
-
-            {/* Entradas sin cargo → WhatsApp dinámico */}
-            <a
-              href={hasWA ? waUrl : '#'}
-              target={hasWA ? "_blank" : "_self"}
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                if (!hasWA) { e.preventDefault(); return; }
-                registerMetric('click_gratis');
-              }}
-              className={`w-full ${hasWA ? 'bg-white hover:bg-gray-100 active:scale-[0.98]' : 'bg-white/50 cursor-not-allowed opacity-40'} text-neutral-900 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm`}
-            >
-              {/* WhatsApp icon */}
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-              </svg>
-              Entradas sin cargo
             </a>
           </div>
         </div>
