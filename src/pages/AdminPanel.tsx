@@ -98,7 +98,7 @@ export default function AdminPanel() {
   const [newTask, setNewTask] = useState({ titulo: '', horas_duracion: 24, horas_revision: 0, material_nuevo: '', link_publicitario: 'https://www.instagram.com/hsuevents.cl/' });
   const [showNewTaskLink, setShowNewTaskLink] = useState(false);
   const [creatingTask, setCreatingTask] = useState(false);
-  const [editingTaskTitle, setEditingTaskTitle] = useState<{ id: string; titulo: string } | null>(null);
+  const [editingTaskTitle, setEditingTaskTitle] = useState<{ id: string; titulo: string; link_publicitario: string } | null>(null);
   const [heatCountdown, setHeatCountdown] = useState('');
   const [heatRevCountdown, setHeatRevCountdown] = useState('');
   const [newTaskAuditores, setNewTaskAuditores] = useState(2);
@@ -177,11 +177,18 @@ export default function AdminPanel() {
     return () => clearInterval(interval);
   }, [selectedHeatTask, tareas]);
 
-  // ── Guardar nombre de tarea ───────────────────────────────────────────────
+  // ── Guardar nombre y link de tarea ─────────────────────────────────────────
   const saveTaskTitle = async () => {
     if (!editingTaskTitle) return;
-    await supabase.from('tareas').update({ titulo: editingTaskTitle.titulo }).eq('id', editingTaskTitle.id);
-    setTareas(prev => prev.map(t => t.id === editingTaskTitle.id ? { ...t, titulo: editingTaskTitle.titulo } : t));
+    await supabase.from('tareas').update({ 
+      titulo: editingTaskTitle.titulo, 
+      link_publicitario: editingTaskTitle.link_publicitario 
+    }).eq('id', editingTaskTitle.id);
+    
+    setTareas(prev => prev.map(t => t.id === editingTaskTitle.id 
+      ? { ...t, titulo: editingTaskTitle.titulo, link_publicitario: editingTaskTitle.link_publicitario } 
+      : t
+    ));
     setEditingTaskTitle(null);
   };
 
@@ -205,14 +212,14 @@ export default function AdminPanel() {
     const { data: proms } = await supabase.from('promotores').select('id, nombre, instagram, rol').in('rol', ['promotor', 'vendedor']).order('created_at');
     if (!proms) return;
     
-    // 2. Obtener tareas
-    const { data: tareasData } = await supabase.from('tareas').select('id, fecha_tarea, titulo, horas_duracion, horas_revision, created_at').order('created_at', { ascending: true });
+    // 2. Obtener tareas (descendente para que lo más reciente esté primero/izquierda)
+    const { data: tareasData } = await supabase.from('tareas').select('id, fecha_tarea, titulo, horas_duracion, horas_revision, created_at').order('created_at', { ascending: false });
     if (!tareasData) return;
     const taskList = tareasData.map(t => ({ id: t.id, fecha: t.fecha_tarea, titulo: t.titulo }));
     setHeatTasks(taskList);
     
     if (!selectedHeatTask && taskList.length > 0) {
-      setSelectedHeatTask(taskList[taskList.length - 1].id);
+      setSelectedHeatTask(taskList[0].id); // La más reciente
     }
 
     // 3. Obtener revisiones
@@ -812,21 +819,34 @@ export default function AdminPanel() {
                               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${selTask.fecha_tarea === TODAY ? 'bg-blue-400 animate-pulse' : 'bg-gray-500'}`} />
                               <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{selTask.fecha_tarea === TODAY ? 'HOY' : 'Día seleccionado'} — {formatDate(selTask.fecha_tarea)}</span>
 
-                              {/* Título editable */}
+                              {/* Título y Link editables */}
                               {editingTaskTitle?.id === selTask.id ? (
-                                <div className="flex items-center gap-1.5">
-                                  <input
-                                    value={editingTaskTitle.titulo}
-                                    onChange={e => setEditingTaskTitle(prev => prev ? { ...prev, titulo: e.target.value } : null)}
-                                    onKeyDown={e => { if (e.key === 'Enter') saveTaskTitle(); if (e.key === 'Escape') setEditingTaskTitle(null); }}
-                                    className="bg-neutral-800 border border-blue-500/60 rounded-lg px-2 py-0.5 text-xs outline-none text-white w-52"
-                                    autoFocus
-                                  />
-                                  <button onClick={saveTaskTitle} className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white font-bold px-2 py-0.5 rounded-lg">✓</button>
-                                  <button onClick={() => setEditingTaskTitle(null)} className="text-[10px] text-gray-500 hover:text-white px-1">✕</button>
+                                <div className="flex flex-col gap-2 w-full sm:w-auto">
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      value={editingTaskTitle.titulo}
+                                      onChange={e => setEditingTaskTitle(prev => prev ? { ...prev, titulo: e.target.value } : null)}
+                                      onKeyDown={e => { if (e.key === 'Enter') saveTaskTitle(); if (e.key === 'Escape') setEditingTaskTitle(null); }}
+                                      className="bg-neutral-800 border border-blue-500/60 rounded-lg px-2 py-1 text-xs outline-none text-white w-full sm:w-52"
+                                      placeholder="Título de la tarea..."
+                                      autoFocus
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] text-purple-400">🔗 Link:</span>
+                                    <input
+                                      value={editingTaskTitle.link_publicitario}
+                                      onChange={e => setEditingTaskTitle(prev => prev ? { ...prev, link_publicitario: e.target.value } : null)}
+                                      onKeyDown={e => { if (e.key === 'Enter') saveTaskTitle(); if (e.key === 'Escape') setEditingTaskTitle(null); }}
+                                      className="bg-neutral-800 border border-purple-500/40 rounded-lg px-2 py-1 text-xs outline-none text-purple-300 w-full sm:w-52"
+                                      placeholder="https://www.instagram.com/hsuevents.cl/"
+                                    />
+                                    <button onClick={saveTaskTitle} className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg flex-shrink-0">Guardar</button>
+                                    <button onClick={() => setEditingTaskTitle(null)} className="text-[10px] text-gray-500 hover:text-white px-2 flex-shrink-0">✕</button>
+                                  </div>
                                 </div>
                               ) : (
-                                <button onClick={() => setEditingTaskTitle({ id: selTask.id, titulo: selTask.titulo })}
+                                <button onClick={() => setEditingTaskTitle({ id: selTask.id, titulo: selTask.titulo, link_publicitario: selTask.link_publicitario || 'https://www.instagram.com/hsuevents.cl/' })}
                                   className="text-xs text-gray-400 hover:text-white border border-transparent hover:border-white/20 px-2 py-0.5 rounded-lg transition-all flex items-center gap-1">
                                   {selTask.titulo} ✏️
                                 </button>
@@ -1023,7 +1043,7 @@ export default function AdminPanel() {
                       <table className="text-sm">
                         <thead>
                           <tr className="text-gray-500 text-xs border-b border-white/8">
-                            <th className="text-left pb-2 pr-6 font-semibold sticky left-0 bg-neutral-900 min-w-[150px] align-bottom">Promotor</th>
+                            <th className="text-left pb-2 pr-6 font-semibold sticky left-0 bg-neutral-900 z-10 min-w-[150px] align-bottom border-r border-white/5">Promotor</th>
                             {heatTasks.map(t => (
                               <th key={t.id} 
                                   className={`text-center pb-2 px-3 font-semibold transition-colors ${t.id === selectedHeatTask ? 'text-white bg-blue-500/20 border-b-2 border-blue-500' : (t.fecha === TODAY ? 'text-blue-400' : '')}`}>
@@ -1046,8 +1066,8 @@ export default function AdminPanel() {
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {heatData.map(row => (
-                            <tr key={row.promotor?.id} className="hover:bg-neutral-800/20 transition-colors">
-                              <td className="py-3 pr-6 sticky left-0 bg-neutral-900">
+                            <tr key={row.promotor?.id} className="hover:bg-neutral-800/20 transition-colors group">
+                              <td className="py-3 pr-6 sticky left-0 bg-neutral-900 z-10 border-r border-white/5 group-hover:bg-neutral-800/40">
                                 <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
                                   className="font-semibold text-white hover:text-blue-400 transition-colors">
                                   {row.promotor?.nombre}
