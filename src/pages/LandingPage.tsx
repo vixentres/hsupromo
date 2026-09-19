@@ -96,7 +96,9 @@ export default function LandingPage() {
       const waUrl = buildWhatsAppUrl();
       if (waUrl) {
         registerMetric('click_gratis');
-        window.open(waUrl, '_blank', 'noopener,noreferrer');
+        // Usar navegación directa en lugar de window.open para evitar bloqueadores estritos de popups
+        // en eventos de múltiples clicks
+        window.location.href = waUrl;
       }
     }
   };
@@ -118,11 +120,15 @@ export default function LandingPage() {
         <div className="bg-neutral-900 border border-white/8 rounded-3xl overflow-hidden shadow-2xl">
 
           {/* Banner — función oculta: multi-click abre WhatsApp */}
-          <div
-            className="relative w-full bg-neutral-800 select-none"
-            onClick={handleBannerClick}
-            style={{ WebkitTapHighlightColor: 'transparent', cursor: 'default' }}
-          >
+          <div className="relative w-full bg-neutral-800 select-none">
+            {/* Capa invisible para capturar todos los clicks/taps de forma nativa en cualquier dispositivo */}
+            <button
+              onClick={handleBannerClick}
+              className="absolute inset-0 w-full h-full opacity-0 z-10"
+              style={{ cursor: 'default', WebkitTapHighlightColor: 'transparent' }}
+              aria-hidden="true"
+            />
+            
             {loading ? (
               <div className="h-48 flex items-center justify-center">
                 <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
@@ -131,12 +137,12 @@ export default function LandingPage() {
               <img
                 src={bannerUrl}
                 alt="Banner del evento"
-                className="w-full h-auto block pointer-events-none"
+                className="w-full h-auto block relative z-0"
                 style={{ maxHeight: '480px', objectFit: 'contain' }}
                 draggable={false}
               />
             ) : (
-              <div className="h-48 flex flex-col items-center justify-center gap-2 border-b border-white/8">
+              <div className="h-48 flex flex-col items-center justify-center gap-2 border-b border-white/8 relative z-0">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-700">
                   <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
                 </svg>
