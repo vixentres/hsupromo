@@ -1104,7 +1104,7 @@ export default function AdminPanel() {
           // Obtener fechas únicas de métricas
           const metricDates = [...new Set(metrics.map((m: any) =>
             new Date(m.created_at).toISOString().split('T')[0]
-          ))].sort() as string[];
+          ))].sort((a, b) => b.localeCompare(a)) as string[];
 
           // Agrupar: { promotor_id → { fecha → count } }
           const grouped: Record<string, any> = {};
@@ -1152,10 +1152,10 @@ export default function AdminPanel() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="text-sm">
+                  <table className="text-sm w-full">
                     <thead>
                       <tr className="text-gray-500 text-xs border-b border-white/8 bg-neutral-950/50">
-                        <th className="px-5 py-3 text-left font-semibold sticky left-0 bg-neutral-950/50 min-w-[150px]">Promotor</th>
+                        <th className="px-5 py-3 text-left font-semibold sticky left-0 z-10 bg-neutral-950 min-w-[150px] border-r border-white/5">Promotor</th>
                         {metricDates.map(d => (
                           <th key={d} className="px-4 py-3 text-center font-semibold min-w-[80px]">{formatDate(d)}</th>
                         ))}
@@ -1166,8 +1166,8 @@ export default function AdminPanel() {
                       {rows.length === 0 ? (
                         <tr><td colSpan={metricDates.length + 2} className="px-6 py-8 text-center text-gray-600 text-xs">Sin datos aún.</td></tr>
                       ) : rows.map((r: any, idx: number) => (
-                        <tr key={idx} className="hover:bg-neutral-800/20 transition-colors">
-                          <td className="px-5 py-3 font-semibold sticky left-0 bg-neutral-900">
+                        <tr key={idx} className="hover:bg-neutral-800/20 transition-colors group">
+                          <td className="px-5 py-3 font-semibold sticky left-0 z-10 bg-neutral-900 border-r border-white/5 group-hover:bg-neutral-800/40">
                             <a href={`https://www.instagram.com/${r.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
                               className="hover:text-blue-400 transition-colors flex items-center gap-1.5">
                               {r.promotor?.nombre}
@@ -1192,7 +1192,7 @@ export default function AdminPanel() {
                     {rows.length > 0 && (
                       <tfoot>
                         <tr className="border-t border-white/15 bg-neutral-950/50 text-xs font-bold text-gray-400">
-                          <td className="px-5 py-3 sticky left-0 bg-neutral-950/50">TOTAL</td>
+                          <td className="px-5 py-3 sticky left-0 z-10 bg-neutral-950 border-r border-white/5">TOTAL</td>
                           {metricDates.map(d => {
                             const total = rows.reduce((sum: number, r: any) => sum + (r.byDate[d]?.[statsFilter] || 0), 0);
                             return <td key={d} className={`px-4 py-3 text-center font-mono ${tipoColor[statsFilter]}`}>{total || '—'}</td>;
