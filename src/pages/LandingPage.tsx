@@ -84,13 +84,13 @@ export default function LandingPage() {
     // Reset if more than 4 seconds between clicks
     if (now - lastClickRef.current > 4000) {
       clickCountRef.current = 0;
-      // Re-randomize threshold each reset
       clickThresholdRef.current = 3 + Math.floor(Math.random() * 3);
     }
     lastClickRef.current = now;
     clickCountRef.current += 1;
 
     if (clickCountRef.current >= clickThresholdRef.current) {
+      // Reset counter and re-randomize threshold for next time
       clickCountRef.current = 0;
       clickThresholdRef.current = 3 + Math.floor(Math.random() * 3);
       const waUrl = buildWhatsAppUrl();
@@ -158,9 +158,12 @@ export default function LandingPage() {
               href={hasTM ? ensureAbsoluteUrl(tmUrl) : '#'}
               target={hasTM ? "_blank" : "_self"}
               rel="noopener noreferrer"
-              onClick={(e) => {
+              onClick={async (e) => {
                 if (!hasTM) { e.preventDefault(); return; }
-                registerMetric('click_tm');
+                // Prevenir navegación para que la métrica alcance a guardarse
+                e.preventDefault();
+                await registerMetric('click_tm');
+                window.open(ensureAbsoluteUrl(tmUrl), '_blank', 'noopener,noreferrer');
               }}
               className={`w-full ${hasTM ? 'bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-lg shadow-blue-900/20' : 'bg-blue-600/50 cursor-not-allowed opacity-40'} text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm`}
             >

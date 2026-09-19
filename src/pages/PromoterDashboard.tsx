@@ -201,22 +201,29 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   const handleLogout = () => { logout(); navigate('/promotor/login'); };
 
   const copyLink = async () => {
-    if (!user) return;
-    const url = `${window.location.origin}/?ref=${(user as any).instagram}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    // Usa actualUser para que el modo espectador copie el link del promotor, no del admin
+    const instagram = (actualUser as any)?.instagram;
+    if (!instagram) return;
+    const url = `${window.location.origin}/?ref=${instagram}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (_) {
+      // Clipboard puede fallar en algunos contextos — ignoramos el error pero igual abrimos el link
+    }
   };
 
   const handleVerMaterial = async () => {
-    await copyLink();
+    try { await copyLink(); } catch (_) {}
     if (materialUrl) window.open(materialUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleLinkPublicitario = async () => {
-    if (!tarea?.link_publicitario) return;
-    await copyLink();
-    window.open(tarea.link_publicitario, '_blank', 'noopener,noreferrer');
+    // Usa el link de la tarea o el default de HSU
+    const linkUrl = tarea?.link_publicitario || 'https://www.instagram.com/hsuevents.cl/';
+    try { await copyLink(); } catch (_) {}
+    window.open(linkUrl, '_blank', 'noopener,noreferrer');
   };
 
   const getInstagramUrl = (ig: string) =>
