@@ -16,6 +16,7 @@ export default function LandingPage() {
   const [countdown, setCountdown] = useState('');
   // Personal TM url for vendedores
   const [vendedorTmUrl, setVendedorTmUrl] = useState<string | null>(null);
+  const [promotorId, setPromotorId] = useState<string | null>(null);
 
   // Hidden banner click counter — random threshold between 3 and 5
   const clickCountRef = useRef(0);
@@ -26,9 +27,12 @@ export default function LandingPage() {
 
   useEffect(() => {
     if (!ref) return;
-    registerMetric('visita');
-    // Fetch promotor to check if vendedor and get personal TM url
-    fetchPromotor();
+    // Hacemos el fetch primero para obtener el ID y luego la métrica
+    fetchPromotor().then(id => {
+      if (id) {
+        supabase.from('metricas').insert([{ promotor_id: id, tipo_accion: 'visita' }]).then();
+      }
+    });
   }, [ref]);
 
   // Ticker de cuenta regresiva al evento
@@ -42,12 +46,17 @@ export default function LandingPage() {
   }, [config.fecha_evento]);
 
   const fetchPromotor = async () => {
-    if (!ref) return;
+    if (!ref) return null;
     const { data: promotor } = await supabase
       .from('promotores').select('id, rol, ticketmaster_url').eq('instagram', ref).maybeSingle();
-    if (promotor?.rol === 'vendedor' && promotor?.ticketmaster_url) {
-      setVendedorTmUrl(promotor.ticketmaster_url);
+    if (promotor) {
+      setPromotorId(promotor.id);
+      if (promotor.rol === 'vendedor' && promotor.ticketmaster_url) {
+        setVendedorTmUrl(promotor.ticketmaster_url);
+      }
+      return promotor.id;
     }
+    return null;
   };
 
   const loadConfig = async () => {
@@ -58,10 +67,14 @@ export default function LandingPage() {
 
   const registerMetric = async (tipo: string) => {
     if (!ref) return;
-    const { data: promotor } = await supabase
-      .from('promotores').select('id').eq('instagram', ref).maybeSingle();
-    if (!promotor) return;
-    await supabase.from('metricas').insert([{ promotor_id: promotor.id, tipo_accion: tipo }]);
+    let pId = promotorId;
+    if (!pId) {
+      const { data: promotor } = await supabase
+        .from('promotores').select('id').eq('instagram', ref).maybeSingle();
+      if (!promotor) return;
+      pId = promotor.id;
+    }
+    await supabase.from('metricas').insert([{ promotor_id: pId, tipo_accion: tipo }]);
   };
 
   const ensureAbsoluteUrl = (url: string) => {
@@ -79,7 +92,7 @@ export default function LandingPage() {
   };
 
   // Banner multi-click hidden feature
-  const handleBannerClick = () => {
+  const handleBannerClick = async () => {
     const now = Date.now();
     // Reset if more than 4 seconds between clicks
     if (now - lastClickRef.current > 4000) {
@@ -95,7 +108,7 @@ export default function LandingPage() {
       clickThresholdRef.current = 3 + Math.floor(Math.random() * 3);
       const waUrl = buildWhatsAppUrl();
       if (waUrl) {
-        registerMetric('click_gratis');
+        await registerMetric('click_gratis');
         // Usar navegación directa en lugar de window.open para evitar bloqueadores estritos de popups
         // en eventos de múltiples clicks
         window.location.href = waUrl;
