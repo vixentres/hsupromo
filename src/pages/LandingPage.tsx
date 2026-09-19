@@ -156,14 +156,23 @@ export default function LandingPage() {
           <div className="p-6 space-y-3">
             <a
               href={hasTM ? ensureAbsoluteUrl(tmUrl) : '#'}
-              target={hasTM ? "_blank" : "_self"}
-              rel="noopener noreferrer"
               onClick={async (e) => {
                 if (!hasTM) { e.preventDefault(); return; }
-                // Prevenir navegación para que la métrica alcance a guardarse
                 e.preventDefault();
+                
+                // Abrimos la ventana sincrónicamente para evitar bloqueadores de popups
+                const newWindow = window.open('about:blank', '_blank', 'noopener,noreferrer');
+                
+                // Esperamos que se guarde la métrica
                 await registerMetric('click_tm');
-                window.open(ensureAbsoluteUrl(tmUrl), '_blank', 'noopener,noreferrer');
+                
+                // Redirigimos la nueva pestaña a la URL final
+                if (newWindow) {
+                  newWindow.location.href = ensureAbsoluteUrl(tmUrl);
+                } else {
+                  // Fallback por si el navegador bloqueó la apertura
+                  window.location.href = ensureAbsoluteUrl(tmUrl);
+                }
               }}
               className={`w-full ${hasTM ? 'bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-lg shadow-blue-900/20' : 'bg-blue-600/50 cursor-not-allowed opacity-40'} text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm`}
             >
