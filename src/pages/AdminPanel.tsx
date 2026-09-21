@@ -1207,7 +1207,70 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              {/* Tabla resumen totalizado */}
+              {/* Tabla Desempeño de Tareas */}
+              <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/8">
+                  <h2 className="font-black text-base flex items-center gap-2">Desempeño de Tareas</h2>
+                  <p className="text-gray-500 text-xs mt-0.5">Mide la participación y nivel de cumplimiento según el mapa de calor</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-gray-500 text-xs border-b border-white/8 bg-neutral-950/50">
+                        <th className="px-6 py-3 text-left font-semibold">Promotor</th>
+                        <th className="px-6 py-3 text-center font-semibold" title="Total de tareas en las que fue asignado">Tareas Asignadas</th>
+                        <th className="px-6 py-3 text-center font-semibold text-green-400">Completadas</th>
+                        <th className="px-6 py-3 text-center font-semibold text-yellow-500">Pendientes (Revisión)</th>
+                        <th className="px-6 py-3 text-center font-semibold text-red-400">Faltantes (Rojo)</th>
+                        <th className="px-6 py-3 text-right font-semibold">Cumplimiento %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {(() => {
+                        const performance = heatData.map(row => {
+                          const stats = { total: 0, completadas: 0, pendientes: 0, faltantes: 0 };
+                          heatTasks.forEach(t => {
+                            const tarea = row.tareas[t.id];
+                            if (!tarea || !tarea.self) return; // Not assigned
+                            stats.total++;
+                            const status = (tarea.self.admin_override || tarea.self.submission_status || 'rojo') as string;
+                            if (['verde', 'morado', 'naranja'].includes(status)) stats.completadas++;
+                            else if (status === 'amarillo') stats.pendientes++;
+                            else stats.faltantes++;
+                          });
+                          const pct = stats.total > 0 ? (stats.completadas / stats.total) * 100 : 0;
+                          return { promotor: row.promotor, stats, pct };
+                        });
+                        
+                        performance.sort((a, b) => b.pct - a.pct || b.stats.completadas - a.stats.completadas);
+
+                        if (performance.length === 0) {
+                          return <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-600 text-xs">No hay datos de tareas aún.</td></tr>;
+                        }
+
+                        return performance.map((p, idx) => (
+                          <tr key={p.promotor.id} className="hover:bg-neutral-800/20 transition-colors">
+                            <td className="px-6 py-3 font-semibold flex items-center gap-2">
+                              <a href={`https://www.instagram.com/${p.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                                className="hover:text-blue-400 transition-colors">{p.promotor?.nombre}</a>
+                              {idx === 0 && p.pct === 100 && p.stats.total > 0 && <span className="text-yellow-400 text-[10px]" title="Cumplimiento perfecto">⭐</span>}
+                            </td>
+                            <td className="px-6 py-3 text-center font-mono">{p.stats.total}</td>
+                            <td className="px-6 py-3 text-center font-mono text-green-400 font-medium">{p.stats.completadas}</td>
+                            <td className="px-6 py-3 text-center font-mono text-yellow-500">{p.stats.pendientes}</td>
+                            <td className="px-6 py-3 text-center font-mono text-red-400">{p.stats.faltantes}</td>
+                            <td className={`px-6 py-3 text-right font-mono font-bold ${p.pct >= 80 ? 'text-green-400' : p.pct >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                              {p.pct.toFixed(0)}%
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Tabla resumen totalizado (Tráfico) */}
               <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-white/8">
                   <h2 className="font-black text-base">Resumen General</h2>
