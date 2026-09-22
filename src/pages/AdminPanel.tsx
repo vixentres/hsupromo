@@ -1038,6 +1038,7 @@ export default function AdminPanel() {
                         
                         const pendingAudits = (tarea.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
                         const caughtLiar = (tarea.asAuditor || []).some((r: any) => r.voto === 'NO');
+                        const anyJustificado = incomingAudits.some((a: any) => a.voto === 'JUSTIFICADO');
 
                         let computedStatus = rawStatus;
                         if (rawStatus === 'amarillo' && (isVendedor || allAuditsSI)) {
@@ -1046,6 +1047,8 @@ export default function AdminPanel() {
                           } else {
                             computedStatus = 'amarillo';
                           }
+                        } else if (rawStatus === 'amarillo' && anyJustificado) {
+                          computedStatus = 'naranja';
                         }
 
                         const status = adminOverride || computedStatus;

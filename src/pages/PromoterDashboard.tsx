@@ -168,6 +168,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   
   const pendingAudits = asignados.filter((a: any) => a.voto === 'PENDIENTE').length;
   const caughtLiar = asignados.some((a: any) => a.voto === 'NO');
+  const anyJustificado = !isVendedor && incomingAudits.some((a: any) => a.voto === 'JUSTIFICADO');
 
   let computedStatus = rawStatus;
   if (rawStatus === 'amarillo' && (isVendedor || allAuditsSI)) {
@@ -176,6 +177,8 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     } else {
       computedStatus = 'amarillo'; // Aprobado pero debe auditar para que se ponga verde
     }
+  } else if (rawStatus === 'amarillo' && anyJustificado) {
+    computedStatus = 'naranja';
   }
 
   const myStatus: EstadoColor = adminOverride || computedStatus;
