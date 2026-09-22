@@ -30,8 +30,12 @@ export default function PromoterLogin() {
       <div className="w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-600/20 border border-red-500/30 mb-4">
-            <Shield className="text-red-400" size={28} />
+          <div className="flex justify-center mb-4">
+            <img 
+              src="https://drive.google.com/uc?export=view&id=1EPnSvpGhYLXX2CHtPl-ezxgpF6SE7Nqc" 
+              alt="HSU Logo" 
+              className="w-20 h-20 object-contain"
+            />
           </div>
           <h1 className="text-2xl font-black tracking-tight">Portal de Acceso</h1>
           <p className="text-gray-500 text-sm mt-1">Sistema de Gestión de Promotores</p>
@@ -87,9 +91,6 @@ export default function PromoterLogin() {
             </button>
           </div>
         </div>
-        <p className="text-center text-xs text-gray-600 mt-6">
-          Los admins son redirigidos automáticamente al panel de control
-        </p>
       </div>
     </div>
   );
