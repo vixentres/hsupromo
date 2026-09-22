@@ -3,7 +3,7 @@ import {
   Users, Settings, BarChart3, Plus, Trash2, Save,
   LogOut, Search, Copy, ChevronUp, ChevronDown, Clock, ShieldCheck, RefreshCw, FileText, Eye
 } from 'lucide-react';
-import { supabase, transformDriveUrl, type Promotor, type Tarea, type EstadoColor, type Config } from '../lib/supabase';
+import { supabase, transformDriveUrl, type Promotor, type Tarea, type EstadoColor, type Config, type Rol } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import PromoterDashboard from './PromoterDashboard';
@@ -128,8 +128,59 @@ export default function AdminPanel() {
   const [metrics, setMetrics] = useState<any[]>([]);
   const [statsFilter, setStatsFilter] = useState<'visita' | 'click_tm' | 'click_gratis'>('visita');
   const [loading, setLoading] = useState(true);
+  const [csvData, setCsvData] = useState('');
 
   useEffect(() => { loadAll(); }, []);
+
+  const handleImportCsv = () => {
+    if (!csvData.trim()) return;
+    const lines = csvData.trim().split('\n');
+    if (lines.length < 2) return alert('Debes incluir al menos una fila de cabeceras y una de datos.');
+    
+    // Detect separator (comma or tab)
+    const sep = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase());
+    
+    const required = ['nombre', 'correo', 'instagram'];
+    const missing = required.filter(r => !headers.includes(r));
+    if (missing.length > 0) return alert(`Faltan cabeceras obligatorias: ${missing.join(', ')}\nAsegúrate de escribir "nombre, correo, instagram" como cabeceras (o separadas por tabulador si es Excel).`);
+
+    const newUsers: Promotor[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      const values = lines[i].split(sep);
+      const row: any = {};
+      headers.forEach((h, idx) => {
+        row[h] = values[idx]?.trim() || '';
+      });
+      
+      const tempId = `new_csv_${Date.now()}_${i}`;
+      const newUser: any = {
+        id: tempId,
+        nombre: row.nombre,
+        correo: row.correo,
+        instagram: row.instagram.replace('@', ''),
+        clave: row.clave || '1234',
+        rol: (row.rol || 'promotor').toLowerCase() as Rol,
+        rut: row.rut || '',
+        telefono: row.telefono || '',
+        ticketmaster_url: row.ticketmaster_url || ''
+      };
+      
+      newUsers.push(newUser);
+    }
+    
+    // Añadimos a la tabla local y marcamos como editados para que "Guardar" los inserte
+    setPromotores(prev => [...prev, ...newUsers]);
+    
+    const newEditedRows: any = {};
+    newUsers.forEach(u => {
+      newEditedRows[u.id] = { ...u };
+    });
+    setEditedRows(prev => ({ ...prev, ...newEditedRows }));
+    setCsvData('');
+    alert(`Se prepararon ${newUsers.length} usuarios para insertar. Revisa la tabla y presiona "Guardar" arriba para confirmar los cambios a la base de datos.`);
+  };
 
   const loadAll = async () => {
     setLoading(true);
@@ -581,6 +632,33 @@ export default function AdminPanel() {
                   <Save size={14} /> {savingUsers ? 'Guardando...' : `Guardar${Object.keys(editedRows).length > 0 ? ` (${Object.keys(editedRows).length})` : ''}`}
                 </button>
               </div>
+            </div>
+
+            {/* CSV Import */}
+            <div className="px-4 sm:px-5 py-4 border-b border-white/8 bg-neutral-950/20">
+              <details className="group">
+                <summary className="cursor-pointer text-xs font-bold text-gray-400 hover:text-white flex items-center gap-2 list-none select-none">
+                  <Plus size={14} className="group-open:rotate-45 transition-transform" /> Importar Usuarios Masivamente (Desde Excel / CSV)
+                </summary>
+                <div className="mt-4 flex flex-col gap-3">
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    Pega a continuación el contenido copiado de un Excel o archivo CSV. Asegúrate de incluir las cabeceras en la primera fila. <br/>
+                    Cabeceras requeridas: <code className="text-white bg-white/10 px-1 rounded">nombre</code>, <code className="text-white bg-white/10 px-1 rounded">correo</code>, <code className="text-white bg-white/10 px-1 rounded">instagram</code>.<br/>
+                    Opcionales: <code className="text-gray-400 bg-white/5 px-1 rounded">clave</code> (por defecto 1234), <code className="text-gray-400 bg-white/5 px-1 rounded">rol</code> (promotor/vendedor/admin), <code className="text-gray-400 bg-white/5 px-1 rounded">telefono</code>, <code className="text-gray-400 bg-white/5 px-1 rounded">ticketmaster_url</code>.
+                  </p>
+                  <textarea 
+                    value={csvData}
+                    onChange={e => setCsvData(e.target.value)}
+                    placeholder="nombre&#9;correo&#9;instagram&#9;rol&#10;Juan Perez&#9;juan@mail.com&#9;juan_p&#9;promotor"
+                    className="w-full h-32 bg-neutral-900 border border-white/10 rounded-xl p-3 text-xs font-mono outline-none focus:border-blue-500/50 text-gray-300 resize-y"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={handleImportCsv} disabled={!csvData.trim()} className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-colors">
+                      Procesar Datos
+                    </button>
+                  </div>
+                </div>
+              </details>
             </div>
 
             {/* Tabla con primera columna sticky */}

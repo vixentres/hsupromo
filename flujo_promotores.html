@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Flujo del Sistema - Promotores HSU</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <style>
+    body {
+      background-color: #0a0a0a;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 {
+      font-weight: 900;
+      font-size: 28px;
+      margin-bottom: 5px;
+      color: #3b82f6;
+    }
+    p {
+      color: #a1a1aa;
+      margin-bottom: 40px;
+      max-width: 600px;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .mermaid {
+      background: #171717;
+      padding: 40px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+  <script>
+    mermaid.initialize({
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#1f2937',
+        primaryTextColor: '#fff',
+        primaryBorderColor: '#374151',
+        lineColor: '#60a5fa',
+        secondaryColor: '#3b82f6',
+        tertiaryColor: '#10b981'
+      },
+      flowchart: {
+        curve: 'basis'
+      }
+    });
+  </script>
+</head>
+<body>
+  <h1>Cómo funciona el Sistema HSU</h1>
+  <p>Este es el ciclo de vida de cada misión. El sistema garantiza la transparencia y asigna las auditorías de forma 100% aleatoria para que entre todos verifiquemos el trabajo.</p>
+
+  <div class="mermaid">
+    flowchart TD
+      A([Inicio: Nueva Misión]) --> B[1. Entras a tu Panel]
+      B --> C[2. Descargas Material]
+      
+      C --> D[3. Subes Historia a IG\ncon tu link de referido]
+      
+      D --> E[4. Activas Switch en el Panel]
+      
+      E -->|Estado: Amarillo 🟡| F{El Sistema Asigna Auditores}
+      F -->|Aleatorio| G[Compañeros revisan tu perfil]
+      
+      G -->|Votan SÍ ✅| H([¡Misión Completada!\nVerde 🟢])
+      G -->|Votan NO ❌| I([Misión Fallida\nRojo 🔴])
+      
+      E -.-> J[5. Tú también auditas\na 1 compañero asignado]
+      J --> K{¿Cumples auditando con honestidad?}
+      K -->|Sí| L([Ganas Estatus Auditor Leal\nMorado 🟣])
+      
+      classDef default fill:#1f2937,stroke:#374151,stroke-width:2px,color:#fff;
+      classDef success fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff;
+      classDef fail fill:#7f1d1d,stroke:#ef4444,stroke-width:2px,color:#fff;
+      classDef special fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff;
+      classDef pending fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fff;
+      
+      class H success;
+      class I fail;
+      class L special;
+      class E pending;
+  </div>
+</body>
+</html>
