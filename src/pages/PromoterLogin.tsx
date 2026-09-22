@@ -30,11 +30,11 @@ export default function PromoterLogin() {
       <div className="w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
+          <div className="flex justify-center mb-6">
             <img 
               src="/hsu_logo.png" 
               alt="HSU Logo" 
-              className="w-20 h-20 object-contain"
+              className="w-48 sm:w-56 object-contain"
             />
           </div>
           <h1 className="text-2xl font-black tracking-tight">Portal de Acceso</h1>
