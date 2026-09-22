@@ -646,8 +646,22 @@ export default function AdminPanel() {
                   <Plus size={14} className="group-open:rotate-45 transition-transform" /> Importar Usuarios Masivamente (Desde Excel / CSV)
                 </summary>
                 <div className="mt-4 flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-white/5 border border-white/10 p-3 rounded-xl mb-2">
+                    <p className="text-[11px] text-gray-400 flex-1">
+                      Utiliza estas herramientas para recolectar datos y luego cópialos aquí.
+                    </p>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <a href="https://forms.gle/GC92V7vwCJKZkgCq7" target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 border border-purple-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                        <FileText size={12} /> Formulario
+                      </a>
+                      <a href="https://docs.google.com/spreadsheets/d/1bjFqMV0uiMKy1WeoHXwkCKp2FxBpaNISWISaPCkCKek/edit?usp=sharing" target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                        <FileText size={12} /> Excel de Respuestas
+                      </a>
+                    </div>
+                  </div>
+
                   <p className="text-[11px] text-gray-500 leading-relaxed">
-                    Pega a continuación el contenido copiado de un Excel o archivo CSV. Asegúrate de incluir las cabeceras en la primera fila. <br/>
+                    Pega a continuación el contenido copiado del Excel. Asegúrate de incluir las cabeceras en la primera fila. <br/>
                     Cabeceras requeridas: <code className="text-white bg-white/10 px-1 rounded">nombre</code>, <code className="text-white bg-white/10 px-1 rounded">correo</code>, <code className="text-white bg-white/10 px-1 rounded">instagram</code>.<br/>
                     Opcionales: <code className="text-gray-400 bg-white/5 px-1 rounded">clave</code> (por defecto 1234), <code className="text-gray-400 bg-white/5 px-1 rounded">rol</code> (promotor/vendedor/admin), <code className="text-gray-400 bg-white/5 px-1 rounded">telefono</code>, <code className="text-gray-400 bg-white/5 px-1 rounded">ticketmaster_url</code>.
                   </p>
