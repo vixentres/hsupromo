@@ -32,7 +32,7 @@ export default function PromoterLogin() {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <img 
-              src="https://drive.google.com/uc?export=view&id=1EPnSvpGhYLXX2CHtPl-ezxgpF6SE7Nqc" 
+              src="/hsu_logo.png" 
               alt="HSU Logo" 
               className="w-20 h-20 object-contain"
             />
