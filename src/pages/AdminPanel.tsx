@@ -92,6 +92,7 @@ export default function AdminPanel() {
   const [userRolFilter, setUserRolFilter] = useState<'todos' | 'promotor' | 'admin' | 'vendedor'>('todos');
   const [userSort, setUserSort] = useState<{ field: keyof Promotor; dir: 'asc' | 'desc' }>({ field: 'nombre', dir: 'asc' });
   const [copied, setCopied] = useState<string | null>(null);
+  const [showExtraCols, setShowExtraCols] = useState(false);
 
   // ── Tareas ────────────────────────────────────────────────────────────────
   const [tareas, setTareas] = useState<Tarea[]>([]);
@@ -625,6 +626,9 @@ export default function AdminPanel() {
                 ))}
               </div>
               <div className="flex items-center gap-2 ml-auto">
+                <button onClick={() => setShowExtraCols(!showExtraCols)} className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-gray-400 hover:text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all" title={showExtraCols ? "Ocultar Teléfono y RUT" : "Mostrar Teléfono y RUT"}>
+                  <Eye size={14} className={showExtraCols ? "text-blue-400" : ""} /> <span className="hidden sm:inline">{showExtraCols ? 'Ocultar extras' : 'Mostrar extras'}</span>
+                </button>
                 <button onClick={addRow} className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
                   <Plus size={14} /> <span className="hidden sm:inline">Añadir</span>
                 </button>
@@ -680,7 +684,8 @@ export default function AdminPanel() {
                     <th className="px-4 py-3 text-left font-semibold min-w-[110px] cursor-pointer select-none hover:text-white" onClick={() => toggleSort('instagram')}>
                       <span className="flex items-center gap-1">Instagram<SortIcon field="instagram" /></span>
                     </th>
-                    <th className="px-4 py-3 text-left font-semibold min-w-[100px]">Teléfono</th>
+                    {showExtraCols && <th className="px-4 py-3 text-left font-semibold min-w-[100px]">Teléfono</th>}
+                    {showExtraCols && <th className="px-4 py-3 text-left font-semibold min-w-[100px]">RUT</th>}
                     <th className="px-4 py-3 text-left font-semibold min-w-[100px] cursor-pointer select-none hover:text-white" onClick={() => toggleSort('rol')}>
                       <span className="flex items-center gap-1">Rol<SortIcon field="rol" /></span>
                     </th>
@@ -719,10 +724,19 @@ export default function AdminPanel() {
                             className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[90px] text-sm" />
                         </td>
                         {/* Teléfono */}
-                        <td className="px-3 py-1.5">
-                          <input type="text" value={val('telefono')} onChange={e => editCell(p.id, 'telefono', e.target.value)}
-                            className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[90px] text-sm" />
-                        </td>
+                        {showExtraCols && (
+                          <td className="px-3 py-1.5">
+                            <input type="text" value={val('telefono')} onChange={e => editCell(p.id, 'telefono', e.target.value)}
+                              className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[90px] text-sm" />
+                          </td>
+                        )}
+                        {/* RUT */}
+                        {showExtraCols && (
+                          <td className="px-3 py-1.5">
+                            <input type="text" value={val('rut')} onChange={e => editCell(p.id, 'rut', e.target.value)}
+                              className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-blue-500/60 focus:bg-neutral-950 rounded-lg px-2 py-1.5 outline-none transition-all min-w-[90px] text-sm" />
+                          </td>
+                        )}
                         {/* Rol */}
                         <td className="px-3 py-1.5">
                           <select value={val('rol')} onChange={e => editCell(p.id, 'rol', e.target.value)}
