@@ -96,13 +96,13 @@ export default function AdminPanel() {
 
   // ── Tareas ────────────────────────────────────────────────────────────────
   const [tareas, setTareas] = useState<Tarea[]>([]);
-  const [newTask, setNewTask] = useState({ titulo: '', horas_duracion: 24, horas_revision: 0, material_nuevo: '', link_publicitario: 'https://www.instagram.com/hsuevents.cl/' });
+  const [newTask, setNewTask] = useState({ titulo: '', horas_duracion: 24, horas_revision: 4, material_nuevo: '', link_publicitario: 'https://www.instagram.com/hsuevents.cl/' });
   const [showNewTaskLink, setShowNewTaskLink] = useState(false);
   const [creatingTask, setCreatingTask] = useState(false);
   const [editingTaskTitle, setEditingTaskTitle] = useState<{ id: string; titulo: string; link_publicitario: string } | null>(null);
   const [heatCountdown, setHeatCountdown] = useState('');
   const [heatRevCountdown, setHeatRevCountdown] = useState('');
-  const [newTaskAuditores, setNewTaskAuditores] = useState(2);
+  const [newTaskAuditores, setNewTaskAuditores] = useState(1);
 
   // ── Config ────────────────────────────────────────────────────────────────
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
@@ -783,7 +783,7 @@ export default function AdminPanel() {
         {activeTab === 'tasks' && (
           <div className="space-y-6">
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="max-w-4xl">
               {/* Gestor de Tarea */}
               <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 h-fit">
                 <h2 className="font-black text-base mb-4">Gestor de Tarea</h2>
