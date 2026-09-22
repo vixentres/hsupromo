@@ -6,6 +6,7 @@
   <title>Flujo del Sistema - Promotores HSU</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
   <style>
     body {
       background-color: #0a0a0a;
@@ -75,20 +76,44 @@
       }
     });
 
-    // Activar zoom y paneo una vez que mermaid haya renderizado
+    // Event handler para Hammer.js (gestos en móvil)
+    var eventsHandler = {
+      haltEventListeners: ['touchstart', 'touchend', 'touchmove', 'touchleave', 'touchcancel'],
+      init: function(options) {
+        var instance = options.instance, initialScale = 1, pannedX = 0, pannedY = 0;
+        this.hammer = Hammer(options.svgElement, { inputClass: Hammer.SUPPORT_POINTER_EVENTS ? Hammer.PointerEventInput : Hammer.TouchInput });
+        this.hammer.get('pinch').set({enable: true});
+        this.hammer.on('doubletap', function(ev){ instance.zoomIn(); });
+        this.hammer.on('panstart panmove', function(ev){
+          if (ev.type === 'panstart') { pannedX = 0; pannedY = 0; }
+          instance.panBy({x: ev.deltaX - pannedX, y: ev.deltaY - pannedY});
+          pannedX = ev.deltaX; pannedY = ev.deltaY;
+        });
+        this.hammer.on('pinchstart pinchmove', function(ev){
+          if (ev.type === 'pinchstart') {
+            initialScale = instance.getZoom();
+            instance.zoomAtPoint(initialScale * ev.scale, {x: ev.center.x, y: ev.center.y});
+          }
+          instance.zoomAtPoint(initialScale * ev.scale, {x: ev.center.x, y: ev.center.y});
+        });
+        options.svgElement.addEventListener('touchmove', function(e){ e.preventDefault(); });
+      },
+      destroy: function(){ this.hammer.destroy(); }
+    };
+
     document.addEventListener("DOMContentLoaded", () => {
       const checkSVG = setInterval(() => {
         const svg = document.querySelector('.mermaid svg');
         if (svg) {
           clearInterval(checkSVG);
-          // Permitir zoom
           svgPanZoom(svg, {
             zoomEnabled: true,
             controlIconsEnabled: true,
             fit: true,
             center: true,
             minZoom: 0.5,
-            maxZoom: 5
+            maxZoom: 5,
+            customEventsHandler: eventsHandler
           });
         }
       }, 300);
