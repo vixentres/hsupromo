@@ -1,0 +1,4 @@
+nombre,correo,instagram,clave,rol,telefono,ticketmaster_url,rut
+Admin Jefe,admin@hsu.cl,admin_hsu,1234,admin,+56911111111,,11111111-1
+Ana Ventas,ana@hsu.cl,ana_ventas,1234,vendedor,+56922222222,https://ticketmaster.cl/event/hsu?ref=ana,22222222-2
+Juan Promo,juan@hsu.cl,juan.promo,1234,promotor,+56933333333,,33333333-3

@@ -82,7 +82,7 @@ const DEFAULT_CONFIG: Config = {
 export default function AdminPanel() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'users' | 'tasks' | 'stats' | 'config'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'tasks' | 'stats' | 'config' | 'flow'>('users');
 
   // ── Usuarios ──────────────────────────────────────────────────────────────
   const [promotores, setPromotores] = useState<Promotor[]>([]);
@@ -591,7 +591,7 @@ export default function AdminPanel() {
 
         {/* Tabs Principales */}
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {(['users', 'tasks', 'stats', 'config'] as const).map(tab => (
+          {(['users', 'tasks', 'stats', 'config', 'flow'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2
               ${activeTab === tab ? 'bg-white text-neutral-900 shadow-lg' : 'bg-neutral-900 text-gray-400 hover:text-white border border-white/5 hover:bg-neutral-800'}`}>
@@ -599,7 +599,8 @@ export default function AdminPanel() {
               {tab === 'tasks' && <FileText size={16} />}
               {tab === 'stats' && <BarChart3 size={16} />}
               {tab === 'config' && <Settings size={16} />}
-              {tab === 'users' ? 'Promotores' : tab === 'tasks' ? 'Tareas y Revisiones' : tab === 'stats' ? 'Analíticas' : 'Configuración'}
+              {tab === 'flow' && <Eye size={16} />}
+              {tab === 'users' ? 'Promotores' : tab === 'tasks' ? 'Tareas y Revisiones' : tab === 'stats' ? 'Analíticas' : tab === 'config' ? 'Configuración' : 'Diagrama de Flujo'}
             </button>
           ))}
         </div>
@@ -1002,19 +1003,31 @@ export default function AdminPanel() {
                         const rawStatus = (selfRev?.submission_status || 'rojo') as EstadoColor;
                         const adminOverride = selfRev?.admin_override as EstadoColor | null;
 
-                        // Auto-verde: si publicó (amarillo) Y todos los revisores votaron SI
+                        // Auto-verde o Auto-morado
                         const incomingAudits: any[] = tarea.incomingAudits || [];
                         const allAuditsSI = incomingAudits.length > 0 && incomingAudits.every((a: any) => a.voto === 'SI');
-                        const autoVerde = rawStatus === 'amarillo' && allAuditsSI;
+                        const isVendedor = row.promotor?.rol === 'vendedor';
+                        
+                        const pendingAudits = (tarea.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
+                        const caughtLiar = (tarea.asAuditor || []).some((r: any) => r.voto === 'NO');
 
-                        const status = adminOverride || (autoVerde ? 'verde' : rawStatus);
+                        let computedStatus = rawStatus;
+                        if (rawStatus === 'amarillo' && (isVendedor || allAuditsSI)) {
+                          if (isVendedor || pendingAudits === 0) {
+                            computedStatus = caughtLiar ? 'morado' : 'verde';
+                          } else {
+                            computedStatus = 'amarillo';
+                          }
+                        }
+
+                        const status = adminOverride || computedStatus;
                         const hasPublished = rawStatus !== 'rojo';
                         const hasAdminReview = !!adminOverride;
-                        const pendingAudits = (tarea.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
 
                         let stateText = '';
-                        if (autoVerde && !adminOverride) stateText = pendingAudits > 0 ? '✅ Auto-aprobado, debe revisar' : '✅ Auto-aprobado (revisión cruzada)';
-                        else if (status === 'verde' || status === 'morado') stateText = pendingAudits > 0 ? 'Aprobado, debe revisar' : '✅ 100% OK';
+                        if (status === 'morado') stateText = '✅ 100% OK (Auditor Leal)';
+                        else if (status === 'verde') stateText = '✅ 100% OK';
+                        else if (status === 'amarillo' && allAuditsSI) stateText = '⏳ Aprobado, falta que audite';
                         else if (status === 'naranja') stateText = 'Justificado';
                         else if (hasPublished) stateText = pendingAudits > 0 ? 'Publicó · Espera revisión' : 'Publicó · Sin validar';
                         else stateText = pendingAudits > 0 ? 'Sin publicar · Debe revisar' : 'Sin publicar';
@@ -1477,6 +1490,13 @@ export default function AdminPanel() {
 
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ══ TAB FLUJO ════════════════════════════════════════════════════ */}
+        {activeTab === 'flow' && (
+          <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden h-[calc(100vh-200px)]">
+            <iframe src="/flujo_promotores.html" className="w-full h-full border-none" title="Diagrama de Flujo" />
           </div>
         )}
 

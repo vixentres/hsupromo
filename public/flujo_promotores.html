@@ -66,15 +66,23 @@
       
       D --> E[4. Activas Switch en el Panel]
       
-      E -->|Estado: Amarillo 🟡| F{El Sistema Asigna Auditores}
-      F -->|Aleatorio| G[Compañeros revisan tu perfil]
+      E -->|Estado: Amarillo 🟡| F{Cumplir 3 Requisitos}
       
-      G -->|Votan SÍ ✅| H([¡Misión Completada!\nVerde 🟢])
-      G -->|Votan NO ❌| I([Misión Fallida\nRojo 🔴])
-      
-      E -.-> J[5. Tú también auditas\na 1 compañero asignado]
-      J --> K{¿Cumples auditando con honestidad?}
-      K -->|Sí| L([Ganas Estatus Auditor Leal\nMorado 🟣])
+      F --> R1[Requisito 1: Switch Activado]
+      F --> R2[Requisito 2: Ser aprobado\npor tus auditores]
+      F --> R3[Requisito 3: Tú debes auditar\na tu compañero asignado]
+
+      R1 --> CHECK
+      R2 --> CHECK
+      R3 --> CHECK
+
+      CHECK{¿Cumples los 3?}
+      CHECK -->|Sí| VERDE([¡Misión Completada!\nVerde 🟢])
+      CHECK -->|Falta alguno| AMAR([Quedas Pendiente\nAmarillo 🟡])
+
+      R3 -.-> CATCH{¿Atrapaste a alguien\nque NO publicó?}
+      CATCH -->|Pones voto NO| MORADO([Ganas Estatus Auditor Leal\nMorado 🟣])
+      CATCH -->|No aplica| VERDE
       
       classDef default fill:#1f2937,stroke:#374151,stroke-width:2px,color:#fff;
       classDef success fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff;
@@ -82,10 +90,9 @@
       classDef special fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff;
       classDef pending fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fff;
       
-      class H success;
-      class I fail;
-      class L special;
-      class E pending;
+      class VERDE success;
+      class MORADO special;
+      class E,AMAR pending;
   </div>
 </body>
 </html>

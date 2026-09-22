@@ -164,9 +164,21 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   // Auto-verde: si es promotor con todos auditores SI; si es vendedor basta con amarillo
   const allAuditsSI = !isVendedor && incomingAudits.length > 0 && incomingAudits.every((a: any) => a.voto === 'SI');
   const rawStatus = (revision?.submission_status || 'rojo') as EstadoColor;
-  const autoVerde = rawStatus === 'amarillo' && (isVendedor || allAuditsSI);
   const adminOverride = revision?.admin_override as EstadoColor | null;
-  const myStatus: EstadoColor = adminOverride || (autoVerde ? 'verde' : rawStatus);
+  
+  const pendingAudits = asignados.filter((a: any) => a.voto === 'PENDIENTE').length;
+  const caughtLiar = asignados.some((a: any) => a.voto === 'NO');
+
+  let computedStatus = rawStatus;
+  if (rawStatus === 'amarillo' && (isVendedor || allAuditsSI)) {
+    if (isVendedor || pendingAudits === 0) {
+      computedStatus = caughtLiar ? 'morado' : 'verde';
+    } else {
+      computedStatus = 'amarillo'; // Aprobado pero debe auditar para que se ponga verde
+    }
+  }
+
+  const myStatus: EstadoColor = adminOverride || computedStatus;
   const isPublished = rawStatus !== 'rojo';
   const isExpired = countdown === 'Expirado';
   const isRevClosed = revCountdown === 'Cerrado';
@@ -200,6 +212,8 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
 
   const handleLogout = () => { logout(); navigate('/promotor/login'); };
 
+  const [viewMode, setViewMode] = useState<'panel' | 'flow'>('panel');
+
   const copyLink = async () => {
     // Usa actualUser para que el modo espectador copie el link del promotor, no del admin
     const instagram = (actualUser as any)?.instagram;
@@ -213,8 +227,6 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
       // Clipboard puede fallar en algunos contextos — ignoramos el error pero igual abrimos el link
     }
   };
-
-
 
   const getInstagramUrl = (ig: string) =>
     linkMode === 'historias' ? `https://www.instagram.com/stories/${ig}/` : `https://www.instagram.com/${ig}/`;
@@ -234,7 +246,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   );
 
   return (
-    <div className="min-h-screen bg-neutral-950">
+    <div className="min-h-screen bg-neutral-950 flex flex-col">
       {impersonatedUser && (
         <div className="bg-red-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-between sticky top-0 z-50">
           <span className="flex items-center gap-2">
@@ -249,10 +261,12 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
       {/* Nav */}
       <nav className="border-b border-white/8 bg-neutral-900/80 backdrop-blur sticky top-0 z-10" style={impersonatedUser ? { top: '32px' } : {}}>
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <span className="font-black text-sm">HSU</span>
-            <span className="text-gray-600 text-xs ml-1.5 hidden sm:inline">/ {actualUser.nombre}</span>
-            {isVendedor && <span className="ml-2 text-[9px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded-full uppercase">Vendedor</span>}
+          <div className="min-w-0 flex items-center gap-2">
+            <span className="font-black text-sm text-white">HSU</span>
+            <div className="flex gap-1 ml-2 bg-neutral-950 p-1 rounded-lg border border-white/5">
+              <button onClick={() => setViewMode('panel')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors ${viewMode === 'panel' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Panel</button>
+              <button onClick={() => setViewMode('flow')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors ${viewMode === 'flow' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Diagrama</button>
+            </div>
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
             <button onClick={loadDashboard}
@@ -273,8 +287,11 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
-        <div className="mb-6">
+      {viewMode === 'flow' ? (
+        <iframe src="/flujo_promotores.html" className="flex-1 w-full h-[calc(100vh-64px)] border-none" title="Diagrama de Flujo" />
+      ) : (
+      <main className="max-w-4xl mx-auto px-4 py-8">
+        <div className="flex items-center gap-4 mb-8">
           <h1 className="text-xl sm:text-2xl font-black tracking-tight">Panel de Misiones</h1>
           <p className="text-gray-500 text-sm mt-1">Hola, <span className="text-white font-semibold">{(user as any).nombre}</span> — aquí están tus tareas del día</p>
         </div>
@@ -525,7 +542,8 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
             )}
           </>
         )}
-      </div>
+      </main>
+      )}
     </div>
   );
 }
