@@ -7,6 +7,7 @@ import { supabase, transformDriveUrl, type Promotor, type Tarea, type EstadoColo
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import PromoterDashboard from './PromoterDashboard';
+import FlowchartViewer from '../components/FlowchartViewer';
 
 // ─── Constantes de color ─────────────────────────────────────────────────────
 const COLORS: EstadoColor[] = ['rojo', 'amarillo', 'verde', 'morado', 'naranja'];
@@ -1527,7 +1528,7 @@ export default function AdminPanel() {
         {/* ══ TAB FLUJO ════════════════════════════════════════════════════ */}
         {activeTab === 'flow' && (
           <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden h-[calc(100vh-200px)]">
-            <iframe src="/flujo_promotores.html" className="w-full h-full border-none" title="Diagrama de Flujo" />
+            <FlowchartViewer />
           </div>
         )}
 

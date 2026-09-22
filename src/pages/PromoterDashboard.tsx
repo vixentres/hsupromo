@@ -3,6 +3,7 @@ import { Copy, Folder, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOu
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase, getCountdown, type Tarea, type Revision, type EstadoColor } from '../lib/supabase';
+import FlowchartViewer from '../components/FlowchartViewer';
 
 const STATUS_STYLE: Record<EstadoColor, { card: string; badge: string; label: string }> = {
   rojo:    { card: 'bg-red-900/20 border-red-500/30',     badge: 'bg-red-500',    label: 'Misión Pendiente' },
@@ -291,7 +292,9 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
       </nav>
 
       {viewMode === 'flow' ? (
-        <iframe src="/flujo_promotores.html" className="flex-1 w-full h-[calc(100vh-64px)] border-none" title="Diagrama de Flujo" />
+        <div className="flex-1 w-full h-[calc(100vh-64px)] overflow-hidden">
+          <FlowchartViewer />
+        </div>
       ) : (
       <main className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center gap-4 mb-8">
