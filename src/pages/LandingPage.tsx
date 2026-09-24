@@ -201,11 +201,6 @@ export default function LandingPage() {
               Comprar en Ticketmaster
             </a>
           </div>
-        </div>
-
-        <p className="text-center text-xs text-gray-700 mt-5">
-          Sistema de gestión de promotores HSU
-        </p>
       </div>
     </div>
   );
