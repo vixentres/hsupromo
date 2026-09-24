@@ -201,6 +201,7 @@ export default function LandingPage() {
               Comprar en Ticketmaster
             </a>
           </div>
+        </div>
       </div>
     </div>
   );
