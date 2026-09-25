@@ -720,7 +720,7 @@ export default function AdminPanel() {
                     const val = (f: keyof Promotor) => ((edited[f] ?? p[f]) || '') as string;
                     const isDirty = !!editedRows[p.id];
                     const ig = val('instagram');
-                    const rolColor = val('rol') === 'admin' ? 'text-blue-400' : val('rol') === 'vendedor' ? 'text-purple-400' : 'text-gray-300';
+                    const rolColor = val('rol') === 'admin' ? 'text-blue-400' : val('rol') === 'vendedor' ? 'text-purple-400' : val('rol') === 'revisor' ? 'text-orange-400' : 'text-gray-300';
                     return (
                       <tr key={p.id} className={`group transition-colors ${isDirty ? 'bg-blue-900/10' : 'hover:bg-neutral-800/20'}`}>
                         {/* Correo — sticky */}
@@ -763,6 +763,7 @@ export default function AdminPanel() {
                             className={`bg-neutral-800 border border-white/10 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-500/60 ${rolColor}`}>
                             <option value="promotor">Promotor</option>
                             <option value="vendedor">Vendedor</option>
+                            <option value="revisor">Revisor</option>
                             <option value="admin">Admin</option>
                           </select>
                         </td>
@@ -805,69 +806,70 @@ export default function AdminPanel() {
 
             <div className="max-w-4xl">
               {/* Gestor de Tarea */}
-              <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 h-fit">
-                <h2 className="font-black text-base mb-4">Gestor de Tarea</h2>
-                <div className="flex flex-col gap-3">
-                  <div className="flex gap-3 flex-wrap">
-                    <input type="text" value={newTask.titulo} onChange={e => setNewTask(t => ({ ...t, titulo: e.target.value }))}
-                      placeholder={`Tarea del día ${formatDate(TODAY)}`}
-                      className="flex-1 min-w-[200px] bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500/60 outline-none transition-all" />
-                    <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5" title="Duración total de la tarea">
-                      <span className="text-xs text-gray-500 font-semibold">⏰ Duración:</span>
-                      <input type="number" min={1} max={72} value={newTask.horas_duracion}
-                        onChange={e => setNewTask(t => ({ ...t, horas_duracion: parseInt(e.target.value) }))}
-                        className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
-                      <span className="text-xs text-gray-600">h</span>
+              {user?.rol === 'admin' && (
+                <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 h-fit">
+                  <h2 className="font-black text-base mb-4">Gestor de Tarea</h2>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex gap-3 flex-wrap">
+                      <input type="text" value={newTask.titulo} onChange={e => setNewTask(t => ({ ...t, titulo: e.target.value }))}
+                        placeholder={`Tarea del día ${formatDate(TODAY)}`}
+                        className="flex-1 min-w-[200px] bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500/60 outline-none transition-all" />
+                      <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5" title="Duración total de la tarea">
+                        <span className="text-xs text-gray-500 font-semibold">⏰ Duración:</span>
+                        <input type="number" min={1} max={72} value={newTask.horas_duracion}
+                          onChange={e => setNewTask(t => ({ ...t, horas_duracion: parseInt(e.target.value) }))}
+                          className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
+                        <span className="text-xs text-gray-600">h</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 bg-neutral-950 border border-yellow-500/20 rounded-xl px-4 py-2.5" title="Horas ANTES de expirar en que se cierra la revisión">
-                      <span className="text-xs text-yellow-600 font-semibold">🔔 Cierre revisión:</span>
-                      <input type="number" min={0} max={newTask.horas_duracion - 1} value={newTask.horas_revision}
-                        onChange={e => setNewTask(t => ({ ...t, horas_revision: parseInt(e.target.value) || 0 }))}
-                        className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
-                      <span className="text-xs text-gray-600">h antes</span>
+                    <div className="flex gap-3 flex-wrap">
+                      <div className="flex items-center gap-2 bg-neutral-950 border border-yellow-500/20 rounded-xl px-4 py-2.5" title="Horas ANTES de expirar en que se cierra la revisión">
+                        <span className="text-xs text-yellow-600 font-semibold">🔔 Cierre revisión:</span>
+                        <input type="number" min={0} max={newTask.horas_duracion - 1} value={newTask.horas_revision}
+                          onChange={e => setNewTask(t => ({ ...t, horas_revision: parseInt(e.target.value) || 0 }))}
+                          className="w-12 bg-transparent text-sm outline-none text-center font-mono" />
+                        <span className="text-xs text-gray-600">h antes</span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5" title="Cantidad de compañeros que cada promotor debe auditar">
+                        <span className="text-xs text-gray-500 font-semibold">Auditores:</span>
+                        <input type="number" min={0} max={5} value={newTaskAuditores}
+                          onChange={e => setNewTaskAuditores(parseInt(e.target.value, 10) || 0)}
+                          className="w-10 bg-transparent text-sm outline-none text-center font-mono" />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5" title="Cantidad de compañeros que cada promotor debe auditar">
-                      <span className="text-xs text-gray-500 font-semibold">Auditores:</span>
-                      <input type="number" min={0} max={5} value={newTaskAuditores}
-                        onChange={e => setNewTaskAuditores(parseInt(e.target.value, 10) || 0)}
-                        className="w-10 bg-transparent text-sm outline-none text-center font-mono" />
-                    </div>
-                  </div>
 
-                  {/* Link Publicitario */}
-                  <div className="border border-white/8 rounded-xl p-3 bg-neutral-950/30">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
-                        📢 Link Publicitario
-                        {newTask.link_publicitario && newTask.link_publicitario !== 'https://www.instagram.com/hsuevents.cl/' && (
-                          <span className="text-[9px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-1.5 py-0.5 rounded-full">Personalizado</span>
-                        )}
-                      </span>
-                      <button type="button" onClick={() => setShowNewTaskLink(v => !v)}
-                        className="text-[10px] font-bold text-gray-500 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-lg transition-colors">
-                        {showNewTaskLink ? 'Ocultar' : newTask.link_publicitario !== 'https://www.instagram.com/hsuevents.cl/' ? '🔗 Ver link' : '+ Cambiar link'}
-                      </button>
+                    {/* Link Publicitario */}
+                    <div className="border border-white/8 rounded-xl p-3 bg-neutral-950/30">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400 font-semibold flex items-center gap-1.5">
+                          📢 Link Publicitario
+                          {newTask.link_publicitario && newTask.link_publicitario !== 'https://www.instagram.com/hsuevents.cl/' && (
+                            <span className="text-[9px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-1.5 py-0.5 rounded-full">Personalizado</span>
+                          )}
+                        </span>
+                        <button type="button" onClick={() => setShowNewTaskLink(v => !v)}
+                          className="text-[10px] font-bold text-gray-500 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-lg transition-colors">
+                          {showNewTaskLink ? 'Ocultar' : newTask.link_publicitario !== 'https://www.instagram.com/hsuevents.cl/' ? '🔗 Ver link' : '+ Cambiar link'}
+                        </button>
+                      </div>
+                      {showNewTaskLink && (
+                        <input type="text" value={newTask.link_publicitario}
+                          onChange={e => setNewTask(t => ({ ...t, link_publicitario: e.target.value }))}
+                          placeholder="https://www.instagram.com/hsuevents.cl/"
+                          className="w-full mt-2 bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-xs text-purple-300 focus:border-purple-500/60 outline-none transition-all" />
+                      )}
                     </div>
-                    {showNewTaskLink && (
-                      <input type="text" value={newTask.link_publicitario}
-                        onChange={e => setNewTask(t => ({ ...t, link_publicitario: e.target.value }))}
-                        placeholder="https://www.instagram.com/hsuevents.cl/"
-                        className="w-full mt-2 bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-xs text-purple-300 focus:border-purple-500/60 outline-none transition-all" />
-                    )}
-                  </div>
 
-                  <button onClick={crearTarea} disabled={creatingTask}
-                    className="self-end bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 font-black py-2.5 px-6 rounded-xl text-sm flex items-center gap-2 transition-all">
-                    {creatingTask
-                      ? <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Creando...</>
-                      : <><Plus size={15} />Crear y Asignar</>
-                    }
-                  </button>
+                    <button onClick={crearTarea} disabled={creatingTask}
+                      className="self-end bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 font-black py-2.5 px-6 rounded-xl text-sm flex items-center gap-2 transition-all">
+                      {creatingTask
+                        ? <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Creando...</>
+                        : <><Plus size={15} />Crear y Asignar</>
+                      }
+                    </button>
+                  </div>
                 </div>
-              </div>
-
+              )}
             </div>
 
             {/* Mapa de Calor */}
