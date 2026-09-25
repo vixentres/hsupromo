@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Settings, BarChart3, Plus, Trash2, Save,
-  LogOut, Search, Copy, ChevronUp, ChevronDown, Clock, ShieldCheck, RefreshCw, FileText, Eye
+  LogOut, Search, Copy, ChevronUp, ChevronDown, Clock, ShieldCheck, RefreshCw, FileText, Eye, ExternalLink
 } from 'lucide-react';
 import { supabase, transformDriveUrl, type Promotor, type Tarea, type EstadoColor, type Config, type Rol } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -1022,7 +1022,8 @@ export default function AdminPanel() {
                         <th className="text-left pb-2 px-3 font-semibold">Debe revisar a</th>
                         <th className="text-left pb-2 px-3 font-semibold">Color · Estado Real</th>
                         <th className="text-center pb-2 px-3 font-semibold">Rev. Admin</th>
-                        <th className="text-right pb-2 px-2 font-semibold">Ver</th>
+                        <th className="text-center pb-2 px-2 font-semibold" title="Abrir Instagram">IG</th>
+                        <th className="text-right pb-2 px-2 font-semibold">Panel</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -1125,6 +1126,14 @@ export default function AdminPanel() {
                                 ))}
                               </div>
                             </td>
+                            {/* COL NUEVA: Abrir Instagram */}
+                            <td className="py-3 px-2 text-center">
+                              <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center bg-white/5 hover:bg-white/15 border border-white/10 text-white rounded-lg p-1.5 transition-colors text-pink-500 hover:text-pink-400"
+                                title={`Abrir Instagram de @${row.promotor?.instagram}`}>
+                                <ExternalLink size={13} />
+                              </a>
+                            </td>
                             {/* COL 6: Ver panel */}
                             <td className="py-3 px-2 text-right">
                               <button onClick={() => setImpersonated(row.promotor)}
@@ -1137,7 +1146,7 @@ export default function AdminPanel() {
                         );
                       })}
                       {getFilteredHeat().length === 0 && (
-                        <tr><td colSpan={6} className="py-8 text-center text-gray-600 text-xs">
+                        <tr><td colSpan={7} className="py-8 text-center text-gray-600 text-xs">
                           {heatColorFilter !== 'todos' ? `No hay promotores con estado "${COLOR_META[heatColorFilter].label}" en esta fecha.` : 'No hay datos para esta fecha.'}
                         </td></tr>
                       )}
