@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase, getCountdown, type Tarea, type Revision, type EstadoColor } from '../lib/supabase';
 import FlowchartViewer from '../components/FlowchartViewer';
+import { formatRut, formatPhone, formatIg } from '../lib/utils';
 
 const STATUS_STYLE: Record<EstadoColor, { card: string; badge: string; label: string }> = {
   rojo:    { card: 'bg-red-900/20 border-red-500/30',     badge: 'bg-red-500',    label: 'Misión Pendiente' },
@@ -356,19 +357,25 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Instagram (sin @)</label>
-                <input type="text" value={profileData.instagram} onChange={e => setProfileData(p => ({ ...p, instagram: e.target.value.replace('@','') }))}
+                <input type="text" value={profileData.instagram} 
+                  onChange={e => setProfileData(p => ({ ...p, instagram: e.target.value }))}
+                  onBlur={() => setProfileData(p => ({ ...p, instagram: formatIg(p.instagram) }))}
                   className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500/60 outline-none transition-all text-white" required />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Teléfono</label>
-                <input type="text" value={profileData.telefono} onChange={e => setProfileData(p => ({ ...p, telefono: e.target.value }))}
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Teléfono (+569...)</label>
+                <input type="text" value={profileData.telefono} 
+                  onChange={e => setProfileData(p => ({ ...p, telefono: e.target.value }))}
+                  onBlur={() => setProfileData(p => ({ ...p, telefono: formatPhone(p.telefono) }))}
                   className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500/60 outline-none transition-all text-white" />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">RUT</label>
-              <input type="text" value={profileData.rut} onChange={e => setProfileData(p => ({ ...p, rut: e.target.value }))}
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">RUT (Ej: 12.345.678-9)</label>
+              <input type="text" value={profileData.rut} 
+                onChange={e => setProfileData(p => ({ ...p, rut: e.target.value }))}
+                onBlur={() => setProfileData(p => ({ ...p, rut: formatRut(p.rut) }))}
                 className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500/60 outline-none transition-all text-white" />
             </div>
 

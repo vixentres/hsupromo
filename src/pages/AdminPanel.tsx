@@ -8,6 +8,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import PromoterDashboard from './PromoterDashboard';
 import FlowchartViewer from '../components/FlowchartViewer';
+import { formatRut, formatPhone, formatIg } from '../lib/utils';
 
 // ─── Constantes de color ─────────────────────────────────────────────────────
 const COLORS: EstadoColor[] = ['rojo', 'amarillo', 'verde', 'morado', 'naranja'];
@@ -161,11 +162,11 @@ export default function AdminPanel() {
         id: tempId,
         nombre: row.nombre,
         correo: row.correo,
-        instagram: row.instagram.replace('@', ''),
+        instagram: formatIg(row.instagram || ''),
         clave: row.clave || '1234',
         rol: (row.rol || 'promotor').toLowerCase() as Rol,
-        rut: row.rut || '',
-        telefono: row.telefono || '',
+        rut: formatRut(row.rut || ''),
+        telefono: formatPhone(row.telefono || ''),
         ticketmaster_url: row.ticketmaster_url || ''
       };
       
@@ -374,13 +375,22 @@ export default function AdminPanel() {
       .filter(p => p.id.startsWith('new_') && editedRows[p.id])
       .map(p => {
         const row = { ...p, ...editedRows[p.id] };
+        if (row.rut) row.rut = formatRut(row.rut as string);
+        if (row.telefono) row.telefono = formatPhone(row.telefono as string);
+        if (row.instagram) row.instagram = formatIg(row.instagram as string);
         delete (row as any).id; // Remove temporary ID
         return row;
       });
 
     const existingRowsToUpdate = promotores
       .filter(p => !p.id.startsWith('new_') && editedRows[p.id])
-      .map(p => ({ ...p, ...editedRows[p.id] }));
+      .map(p => {
+        const row = { ...p, ...editedRows[p.id] };
+        if (row.rut) row.rut = formatRut(row.rut as string);
+        if (row.telefono) row.telefono = formatPhone(row.telefono as string);
+        if (row.instagram) row.instagram = formatIg(row.instagram as string);
+        return row;
+      });
 
     try {
       if (newRowsToInsert.length > 0) {
