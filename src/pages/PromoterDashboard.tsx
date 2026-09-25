@@ -200,12 +200,31 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
 
     const uid = (actualUser as any).id;
     const newStatus = isPublished ? 'rojo' : 'amarillo';
-    setRevision(prev => prev ? { ...prev, submission_status: newStatus } : null);
-    const { data } = await supabase.from('revisiones')
-      .update({ submission_status: newStatus })
-      .eq('tarea_id', tarea.id).eq('promotor_id', uid).eq('auditor_id', uid)
-      .select().single();
-    if (data) setRevision(data);
+    
+    // Update local state optimistic
+    setRevision(prev => prev ? { ...prev, submission_status: newStatus } : { submission_status: newStatus, admin_override: null } as any);
+    
+    // Si el usuario es nuevo y no tiene fila de revisión en esta tarea (late joiner)
+    const { data: existing } = await supabase.from('revisiones')
+      .select('id').eq('tarea_id', tarea.id).eq('promotor_id', uid).eq('auditor_id', uid).maybeSingle();
+      
+    if (existing) {
+      const { data } = await supabase.from('revisiones')
+        .update({ submission_status: newStatus })
+        .eq('id', existing.id)
+        .select().single();
+      if (data) setRevision(data);
+    } else {
+      const { data } = await supabase.from('revisiones')
+        .insert({
+          tarea_id: tarea.id,
+          promotor_id: uid,
+          auditor_id: uid,
+          submission_status: newStatus,
+          voto: 'SI'
+        }).select().single();
+      if (data) setRevision(data);
+    }
   };
 
   const votar = async (revisionId: string, voto: 'SI' | 'NO' | 'JUSTIFICADO') => {
@@ -425,7 +444,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
             </div>
 
             {/* ── AUDITORÍAS (solo promotores) ─────────────────── */}
-            {!isVendedor && (
+            {!isVendedor && asignados.length > 0 && (
               <div className="bg-neutral-900 border border-white/8 rounded-2xl p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-5 flex-wrap gap-2">
                   <div>
