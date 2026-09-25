@@ -107,7 +107,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         .from('revisiones')
         .select('submission_status, admin_override, tareas!inner(fecha_tarea, activa)')
         .eq('promotor_id', uid).eq('auditor_id', uid)
-        .order('tareas(fecha_tarea)', { ascending: true });
+        .order('tareas(fecha_tarea)', { ascending: false });
       setHistory(hist || []);
     }
   };
@@ -397,9 +397,6 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                   >
                     <Folder size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
                     Descargar Material RRSS
-                    <div className="absolute right-4 flex items-center gap-1 text-[10px] bg-neutral-950/40 px-2 py-1 rounded border border-white/10 text-gray-400">
-                      <LinkIcon size={10} /> Copia tu link
-                    </div>
                   </a>
                 )}
                 {tarea.link_publicitario && (
@@ -412,9 +409,6 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                   >
                     <Megaphone size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
                     Ver Publicación Oficial
-                    <div className="absolute right-4 flex items-center gap-1 text-[10px] bg-neutral-950/40 px-2 py-1 rounded border border-white/10 text-gray-400">
-                      <LinkIcon size={10} /> Copia tu link
-                    </div>
                   </a>
                 )}
               </div>

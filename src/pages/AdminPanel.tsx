@@ -460,7 +460,7 @@ export default function AdminPanel() {
     // Desactivar las de días anteriores
     await supabase.from('tareas').update({ activa: false }).neq('id', tareaId);
 
-    const numAuditores = Math.min(newTaskAuditores || 2, proms.length - 1);
+    const numAuditores = Math.min(newTaskAuditores, proms.length - 1);
 
     // Promotores: revisión cruzada entre sí
     proms.forEach((p, i) => {
@@ -825,8 +825,8 @@ export default function AdminPanel() {
                     </div>
                     <div className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5" title="Cantidad de compañeros que cada promotor debe auditar">
                       <span className="text-xs text-gray-500 font-semibold">Auditores:</span>
-                      <input type="number" min={1} max={5} value={newTaskAuditores}
-                        onChange={e => setNewTaskAuditores(parseInt(e.target.value) || 2)}
+                      <input type="number" min={0} max={5} value={newTaskAuditores}
+                        onChange={e => setNewTaskAuditores(parseInt(e.target.value, 10) || 0)}
                         className="w-10 bg-transparent text-sm outline-none text-center font-mono" />
                     </div>
                   </div>
