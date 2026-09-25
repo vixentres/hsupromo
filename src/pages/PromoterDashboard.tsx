@@ -384,23 +384,25 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                       </div>
                     </button>
                   )}
-                  {myStatus === 'rojo' && !isExpired && <p className="text-[10px] text-gray-500 mt-2 font-medium">Toca para activar</p>}
-                  {myStatus === 'amarillo' && !isVendedor && (
-                    <div className="mt-3 w-full">
-                      <p className="text-[10px] text-yellow-500 font-medium text-center mb-1.5">Revisiones:</p>
-                      <div className="flex justify-center gap-1.5">
-                        {incomingAudits.map((aud, i) => (
-                          <span key={i} title={`Revisión ${i+1}: ${aud.voto}`} className="text-sm bg-neutral-900 border border-white/5 w-6 h-6 flex items-center justify-center rounded-full">
-                            {aud.voto === 'PENDIENTE' ? '⌛' : aud.voto === 'SI' ? '✅' : '❌'}
-                          </span>
-                        ))}
-                        {incomingAudits.length === 0 && <span className="text-[10px] text-gray-500">Sin auditores</span>}
+                  <div className="h-[30px] mt-2 w-full flex items-center justify-center">
+                    {myStatus === 'rojo' && !isExpired && <p className="text-[10px] text-gray-500 font-medium">Toca para activar</p>}
+                    {myStatus === 'amarillo' && !isVendedor && (
+                      <div className="w-full">
+                        <p className="text-[10px] text-yellow-500 font-medium text-center mb-1">Revisiones:</p>
+                        <div className="flex justify-center gap-1">
+                          {incomingAudits.map((aud, i) => (
+                            <span key={i} title={`Revisión ${i+1}: ${aud.voto}`} className="text-xs bg-neutral-900 border border-white/5 w-4 h-4 flex items-center justify-center rounded-full">
+                              {aud.voto === 'PENDIENTE' ? '⌛' : aud.voto === 'SI' ? '✅' : '❌'}
+                            </span>
+                          ))}
+                          {incomingAudits.length === 0 && <span className="text-[10px] text-gray-500">Sin auditores</span>}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {isVendedor && myStatus === 'amarillo' && (
-                    <p className="text-[10px] text-yellow-500 mt-2 font-medium text-center">Registrado ✓</p>
-                  )}
+                    )}
+                    {isVendedor && myStatus === 'amarillo' && (
+                      <p className="text-[10px] text-yellow-500 font-medium text-center">Registrado ✓</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -434,13 +436,15 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
             </div>
 
             {/* ── EXPLICACIÓN DEL ESTADO ────────────────────────── */}
-            <div className="bg-neutral-900/60 border border-white/5 rounded-xl px-4 py-3 mb-6 text-xs text-gray-500 leading-relaxed">
-              {myStatus === 'rojo' && '🔴 Aún no has activado tu publicación. Descarga el material, súbelo a tus Stories con tu link, y activa el switch.'}
-              {myStatus === 'amarillo' && !isVendedor && '🟡 Switch activado. Tus auditores verificarán tu perfil. Si confirman, pasarás a Verde automáticamente.'}
-              {myStatus === 'amarillo' && isVendedor && '🟡 Publicación registrada correctamente.'}
-              {myStatus === 'verde' && '🟢 ¡Misión cumplida! Tu publicación fue confirmada.'}
-              {myStatus === 'morado' && '🟣 Cumpliste auditando con honestidad. Eres un Auditor Leal.'}
-              {myStatus === 'naranja' && '🟠 Tu caso fue justificado por el administrador.'}
+            <div className="bg-neutral-900/60 border border-white/5 rounded-xl px-4 py-3 mb-6 text-xs text-gray-500 leading-relaxed min-h-[64px] flex items-center">
+              <div>
+                {myStatus === 'rojo' && '🔴 Aún no has activado tu publicación. Descarga el material, súbelo a tus Stories con tu link, y activa el switch.'}
+                {myStatus === 'amarillo' && !isVendedor && '🟡 Switch activado. Tus auditores verificarán tu perfil. Si confirman, pasarás a Verde automáticamente.'}
+                {myStatus === 'amarillo' && isVendedor && '🟡 Publicación registrada correctamente.'}
+                {myStatus === 'verde' && '🟢 ¡Misión cumplida! Tu publicación fue confirmada.'}
+                {myStatus === 'morado' && '🟣 Cumpliste auditando con honestidad. Eres un Auditor Leal.'}
+                {myStatus === 'naranja' && '🟠 Tu caso fue justificado por el administrador.'}
+              </div>
             </div>
 
             {/* ── AUDITORÍAS (solo promotores) ─────────────────── */}
