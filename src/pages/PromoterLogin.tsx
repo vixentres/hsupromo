@@ -106,16 +106,16 @@ export default function PromoterLogin() {
           <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
             <div>
               <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
-                Correo electrónico
+                Correo o Usuario
               </label>
               <input
-                type="email"
+                type="text"
                 name="email"
                 autoComplete="email"
                 value={correo}
                 onChange={e => setCorreo(e.target.value)}
                 className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-red-500/60 focus:ring-1 focus:ring-red-500/20 outline-none transition-all text-white"
-                placeholder="tu@correo.com"
+                placeholder="Ingresa tu correo o usuario"
                 required
               />
             </div>
