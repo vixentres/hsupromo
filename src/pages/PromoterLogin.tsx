@@ -65,7 +65,7 @@ export default function PromoterLogin() {
       const res = await login(emailStr, clave);
       
       if (res.success) {
-        if (res.rol === 'admin') navigate('/admin');
+        if (res.rol === 'admin' || res.rol === 'revisor') navigate('/admin');
         else navigate('/promotor/dashboard');
       } else {
         setError(res.message || 'Contraseña incorrecta');

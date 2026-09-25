@@ -562,11 +562,14 @@ export default function AdminPanel() {
   const bannerPreview = transformDriveUrl(config.banner_url);
 
   if (loading) return <div className="p-10 text-center text-gray-500">Cargando Admin Hub...</div>;
-  if (!user || user.rol !== 'admin') return null;
+  if (!user || (user.rol !== 'admin' && user.rol !== 'revisor')) return null;
 
   if (impersonated) {
     return <PromoterDashboard impersonatedUser={impersonated} onExitImpersonation={() => setImpersonated(null)} allowSwitchEdit={true} />;
   }
+
+  const availableTabs = user.rol === 'revisor' ? (['tasks'] as const) : (['users', 'tasks', 'stats', 'config', 'flow'] as const);
+  const currentTab = availableTabs.includes(activeTab as any) ? activeTab : 'tasks';
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -577,9 +580,9 @@ export default function AdminPanel() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-neutral-900 border border-white/8 rounded-2xl p-6">
           <div>
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <ShieldCheck className="text-blue-500" /> Admin Hub
+              <ShieldCheck className="text-blue-500" /> {user.rol === 'revisor' ? 'Panel de Revisión' : 'Admin Hub'}
             </h1>
-            <p className="text-gray-500 text-sm mt-1">Gestión de promotores, misiones y métricas</p>
+            <p className="text-gray-500 text-sm mt-1">{user.rol === 'revisor' ? 'Revisión y gestión de auditorías' : 'Gestión de promotores, misiones y métricas'}</p>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={loadAll} className="flex items-center gap-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded-xl transition-colors">
@@ -592,23 +595,25 @@ export default function AdminPanel() {
         </div>
 
         {/* Tabs Principales */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {(['users', 'tasks', 'stats', 'config', 'flow'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2
-              ${activeTab === tab ? 'bg-white text-neutral-900 shadow-lg' : 'bg-neutral-900 text-gray-400 hover:text-white border border-white/5 hover:bg-neutral-800'}`}>
-              {tab === 'users' && <Users size={16} />}
-              {tab === 'tasks' && <FileText size={16} />}
-              {tab === 'stats' && <BarChart3 size={16} />}
-              {tab === 'config' && <Settings size={16} />}
-              {tab === 'flow' && <Eye size={16} />}
-              {tab === 'users' ? 'Promotores' : tab === 'tasks' ? 'Tareas y Revisiones' : tab === 'stats' ? 'Analíticas' : tab === 'config' ? 'Configuración' : 'Diagrama de Flujo'}
-            </button>
-          ))}
-        </div>
+        {availableTabs.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {availableTabs.map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2
+                ${currentTab === tab ? 'bg-white text-neutral-900 shadow-lg' : 'bg-neutral-900 text-gray-400 hover:text-white border border-white/5 hover:bg-neutral-800'}`}>
+                {tab === 'users' && <Users size={16} />}
+                {tab === 'tasks' && <FileText size={16} />}
+                {tab === 'stats' && <BarChart3 size={16} />}
+                {tab === 'config' && <Settings size={16} />}
+                {tab === 'flow' && <Eye size={16} />}
+                {tab === 'users' ? 'Promotores' : tab === 'tasks' ? 'Tareas y Revisiones' : tab === 'stats' ? 'Analíticas' : tab === 'config' ? 'Configuración' : 'Diagrama de Flujo'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ══ TAB USUARIOS ══════════════════════════════════════════════════ */}
-        {activeTab === 'users' && (
+        {currentTab === 'users' && (
           <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
             {/* Toolbar */}
             <div className="px-4 sm:px-5 py-4 border-b border-white/8 flex flex-wrap items-center gap-3">
@@ -795,7 +800,7 @@ export default function AdminPanel() {
         )}
 
         {/* ══ TAB GESTOR DE TAREAS ══════════════════════════════════════════ */}
-        {activeTab === 'tasks' && (
+        {currentTab === 'tasks' && (
           <div className="space-y-6">
 
             <div className="max-w-4xl">
@@ -1229,7 +1234,7 @@ export default function AdminPanel() {
         )}
 
         {/* ══ TAB ANALÍTICAS ════════════════════════════════════════════════ */}
-        {activeTab === 'stats' && (() => {
+        {currentTab === 'stats' && (() => {
           // Tipos de acción disponibles
           type TipoFiltro = 'visita' | 'click_tm' | 'click_gratis';
 
@@ -1447,7 +1452,7 @@ export default function AdminPanel() {
         })()}
 
         {/* ══ TAB CONFIGURACIÓN ════════════════════════════════════════════ */}
-        {activeTab === 'config' && (
+        {currentTab === 'config' && (
           <div className="space-y-6">
             <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-white/8 flex justify-between items-center bg-neutral-950/30">
@@ -1535,7 +1540,7 @@ export default function AdminPanel() {
         )}
 
         {/* ══ TAB FLUJO ════════════════════════════════════════════════════ */}
-        {activeTab === 'flow' && (
+        {currentTab === 'flow' && (
           <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden h-[calc(100vh-200px)]">
             <FlowchartViewer />
           </div>
