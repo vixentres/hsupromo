@@ -235,7 +235,31 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
 
   const handleLogout = () => { logout(); navigate('/promotor/login'); };
 
-  const [viewMode, setViewMode] = useState<'panel' | 'flow'>('panel');
+  const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'perfil'>('panel');
+  const [profileData, setProfileData] = useState({
+    nombre: '', instagram: '', telefono: '', rut: '', clave: ''
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (actualUser) {
+      setProfileData({
+        nombre: (actualUser as any).nombre || '',
+        instagram: (actualUser as any).instagram || '',
+        telefono: (actualUser as any).telefono || '',
+        rut: (actualUser as any).rut || '',
+        clave: (actualUser as any).clave || ''
+      });
+    }
+  }, [actualUser]);
+
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    await supabase.from('promotores').update(profileData).eq('id', (actualUser as any).id);
+    setSavingProfile(false);
+    alert('Datos guardados exitosamente. (Recarga la página si cambiaste la clave y necesitas reloguear)');
+  };
 
   const copyLink = async () => {
     // Usa actualUser para que el modo espectador copie el link del promotor, no del admin
@@ -289,6 +313,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
             <div className="flex gap-1 ml-2 bg-neutral-950 p-1 rounded-lg border border-white/5">
               <button onClick={() => setViewMode('panel')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors ${viewMode === 'panel' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Panel</button>
               <button onClick={() => setViewMode('flow')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors ${viewMode === 'flow' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Diagrama</button>
+              <button onClick={() => setViewMode('perfil')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors ${viewMode === 'perfil' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Mis Datos</button>
             </div>
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
@@ -314,6 +339,54 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         <div className="flex-1 w-full h-[calc(100vh-64px)] overflow-hidden">
           <FlowchartViewer />
         </div>
+      ) : viewMode === 'perfil' ? (
+        <main className="max-w-2xl mx-auto px-4 py-8 w-full">
+          <div className="mb-8">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight mb-2">Mis Datos Personales</h1>
+            <p className="text-gray-500 text-sm">Actualiza tu información. Estos datos son los que usamos para identificarte y contactarte.</p>
+          </div>
+          
+          <form onSubmit={saveProfile} className="bg-neutral-900 border border-white/8 rounded-2xl p-6 sm:p-8 space-y-5">
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Nombre Completo</label>
+              <input type="text" value={profileData.nombre} onChange={e => setProfileData(p => ({ ...p, nombre: e.target.value }))}
+                className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500/60 outline-none transition-all text-white" required />
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Instagram (sin @)</label>
+                <input type="text" value={profileData.instagram} onChange={e => setProfileData(p => ({ ...p, instagram: e.target.value.replace('@','') }))}
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500/60 outline-none transition-all text-white" required />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Teléfono</label>
+                <input type="text" value={profileData.telefono} onChange={e => setProfileData(p => ({ ...p, telefono: e.target.value }))}
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500/60 outline-none transition-all text-white" />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">RUT</label>
+              <input type="text" value={profileData.rut} onChange={e => setProfileData(p => ({ ...p, rut: e.target.value }))}
+                className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500/60 outline-none transition-all text-white" />
+            </div>
+
+            <div className="pt-4 border-t border-white/10 mt-6">
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Cambiar Contraseña</label>
+              <input type="text" value={profileData.clave} onChange={e => setProfileData(p => ({ ...p, clave: e.target.value }))}
+                className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500/60 outline-none transition-all text-white" placeholder="Tu contraseña actual o nueva..." required />
+              <p className="text-[10px] text-gray-500 mt-2">Esta es la clave que usas para acceder. Si la cambias, deberás usar la nueva la próxima vez.</p>
+            </div>
+
+            <div className="pt-4">
+              <button type="submit" disabled={savingProfile}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm transition-all flex items-center justify-center disabled:opacity-50">
+                {savingProfile ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </form>
+        </main>
       ) : (
       <main className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center gap-4 mb-8">
