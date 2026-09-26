@@ -26,8 +26,8 @@ flowchart TD
   CHECK -->|Sí| VERDE([¡Misión Completada!\nVerde 🟢])
   CHECK -->|Falta alguno| AMAR([Quedas Pendiente\nAmarillo 🟡])
 
-  R3 -.-> CATCH{¿Atrapaste a alguien\nque NO publicó?}
-  CATCH -->|Auditor vota NO y es real| MORADO([Misión Aprobada\ny Reportó Fallo 🟢])
+  R3 -.-> CATCH{¿Tu compañero aún\nno ha publicado?}
+  CATCH -->|Votas NO y es correcto| MORADO([Misión Aprobada\nRevisión Temprana 🟢])
   CATCH -->|No aplica| VERDE
   
   R2 -.-> EXCUSE{¿Tuviste un problema\ny el auditor lo validó?}

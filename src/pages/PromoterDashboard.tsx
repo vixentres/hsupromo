@@ -10,7 +10,7 @@ const STATUS_STYLE: Record<EstadoColor, { card: string; badge: string; label: st
   rojo:    { card: 'bg-red-900/20 border-red-500/30',     badge: 'bg-red-500',    label: 'Misión Pendiente' },
   amarillo:{ card: 'bg-yellow-900/20 border-yellow-500/30', badge: 'bg-yellow-500', label: 'Esperando Confirmación' },
   verde:   { card: 'bg-green-900/20 border-green-500/30',  badge: 'bg-green-500',  label: '✓ Misión Aprobada' },
-  morado:  { card: 'bg-teal-900/20 border-teal-500/30',    badge: 'bg-teal-500',   label: '✓ Misión Aprobada (Reportó)' },
+  morado:  { card: 'bg-teal-900/20 border-teal-500/30',    badge: 'bg-teal-500',   label: '✓ Aprobado (Revisión Temprana)' },
   naranja: { card: 'bg-orange-900/20 border-orange-500/30',badge: 'bg-orange-400', label: 'Justificado' },
 };
 
@@ -690,7 +690,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                       <span className="font-mono text-white font-bold">{globalStats.amarillo}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 text-gray-400"><span className="w-2.5 h-2.5 rounded-sm bg-teal-500"></span> Conf. (Reportó)</span>
+                      <span className="flex items-center gap-1.5 text-gray-400"><span className="w-2.5 h-2.5 rounded-sm bg-teal-500"></span> Conf. (Rev. Temprana)</span>
                       <span className="font-mono text-white font-bold">{globalStats.morado}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">

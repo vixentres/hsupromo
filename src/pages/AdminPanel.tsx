@@ -17,7 +17,7 @@ const COLOR_META: Record<EstadoColor, { bg: string; ring: string; label: string;
   rojo:    { bg: 'bg-red-500',    ring: 'ring-red-500',    label: 'Rojo',     desc: 'Pendiente / Castigado' },
   amarillo:{ bg: 'bg-yellow-400', ring: 'ring-yellow-400', label: 'Amarillo', desc: 'En revisión cruzada' },
   verde:   { bg: 'bg-green-500',  ring: 'ring-green-500',  label: 'Verde',    desc: 'Aprobado' },
-  morado:  { bg: 'bg-teal-500',   ring: 'ring-teal-500',   label: 'Verde (Reportó)', desc: 'Aprobado, reportó fallo ajeno' },
+  morado:  { bg: 'bg-teal-500',   ring: 'ring-teal-500',   label: 'Verde (Reportó)', desc: 'Aprobado, revisión temprana' },
   naranja: { bg: 'bg-orange-400', ring: 'ring-orange-400', label: 'Naranja',  desc: 'Justificado' },
 };
 
@@ -1056,13 +1056,28 @@ export default function AdminPanel() {
                         const isVendedor = row.promotor?.rol === 'vendedor';
                         
                         const pendingAudits = (tarea.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
-                        const caughtLiar = (tarea.asAuditor || []).some((r: any) => r.voto === 'NO');
+                        
+                        // Evaluar auditorias realizadas para ver si mintió o reportó bien
+                        let caughtLying = false;
+                        let truthfulLoyal = false;
+                        (tarea.asAuditor || []).forEach((r: any) => {
+                          if (r.voto === 'NO') {
+                            const targetRow = heatData.find(h => h.promotor.id === r.promotor_id);
+                            const tSelf = targetRow?.tareas[selectedHeatTask]?.self;
+                            const tStatus = tSelf?.admin_override || tSelf?.submission_status || 'rojo';
+                            if (tStatus === 'verde') caughtLying = true;
+                            else truthfulLoyal = true;
+                          }
+                        });
+
                         const anyJustificado = incomingAudits.some((a: any) => a.voto === 'JUSTIFICADO');
 
                         let computedStatus = rawStatus;
                         if (rawStatus === 'amarillo' && (isVendedor || allAuditsSI)) {
-                          if (isVendedor || pendingAudits === 0) {
-                            computedStatus = caughtLiar ? 'morado' : 'verde';
+                          if (caughtLying) {
+                            computedStatus = 'rojo';
+                          } else if (isVendedor || pendingAudits === 0) {
+                            computedStatus = truthfulLoyal ? 'morado' : 'verde';
                           } else {
                             computedStatus = 'amarillo';
                           }
@@ -1075,7 +1090,7 @@ export default function AdminPanel() {
                         const hasAdminReview = !!adminOverride;
 
                         let stateText = '';
-                        if (status === 'morado') stateText = '✅ 100% OK (Auditor Leal)';
+                        if (status === 'morado') stateText = '✅ 100% OK (Reportó)';
                         else if (status === 'verde') stateText = '✅ 100% OK';
                         else if (status === 'amarillo' && allAuditsSI) stateText = '⏳ Aprobado, falta que audite';
                         else if (status === 'naranja') stateText = 'Justificado';
