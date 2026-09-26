@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Folder, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOut, Clock, Link as LinkIcon, RefreshCw, Megaphone } from 'lucide-react';
+import { Copy, Folder, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOut, Clock, Link as LinkIcon, RefreshCw, Megaphone, PieChart } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase, getCountdown, type Tarea, type Revision, type EstadoColor } from '../lib/supabase';
@@ -37,6 +37,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   const [revCountdown, setRevCountdown] = useState('');
   const [copied, setCopied] = useState(false);
   const [materialUrl, setMaterialUrl] = useState('');
+  const [globalStats, setGlobalStats] = useState({ verde: 0, amarillo: 0, rojo: 0, naranja: 0, morado: 0, total: 0 });
 
   useEffect(() => {
     if (!loading && !user) navigate('/promotor/login');
@@ -155,8 +156,30 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         setAsignados([]);
         setIncomingAudits([]);
       }
+
+      // Fetch Global Stats
+      const { data: totalProms } = await supabase.from('promotores').select('id', { count: 'exact' }).in('rol', ['promotor', 'vendedor']);
+      const total = totalProms?.length || 0;
+      
+      const { data: allRevs } = await supabase.from('revisiones')
+        .select('submission_status, admin_override, promotor_id, auditor_id')
+        .eq('tarea_id', tareaData.id);
+
+      let v = 0, a = 0, r = 0, n = 0, m = 0;
+      allRevs?.filter(rev => rev.promotor_id === rev.auditor_id).forEach(rev => {
+        const st = rev.admin_override || rev.submission_status || 'rojo';
+        if (st === 'verde') v++;
+        else if (st === 'amarillo') a++;
+        else if (st === 'rojo') r++;
+        else if (st === 'naranja') n++;
+        else if (st === 'morado') m++;
+      });
+      
+      const totalActive = v + a + r + n + m;
+      setGlobalStats({ verde: v, amarillo: a, rojo: r + Math.max(0, total - totalActive), naranja: n, morado: m, total: Math.max(total, totalActive) });
+      
     } else {
-      setRevision(null); setAsignados([]); setIncomingAudits([]);
+      setRevision(null); setAsignados([]); setIncomingAudits([]); setGlobalStats({ verde: 0, amarillo: 0, rojo: 0, naranja: 0, morado: 0, total: 0 });
     }
     setLoadingData(false);
   };
@@ -234,7 +257,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     loadDashboard();
   };
 
-  const handleLogout = () => { logout(); navigate('/promotor/login'); };
+  const handleLogout = () => { logout(); navigate('/'); };
 
   const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'perfil'>('panel');
   const [profileData, setProfileData] = useState({
@@ -280,6 +303,23 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     linkMode === 'historias' ? `https://www.instagram.com/stories/${ig}/` : `https://www.instagram.com/${ig}/`;
 
   const style = STATUS_STYLE[myStatus];
+
+  let conicGradient = 'bg-neutral-800';
+  const { verde, amarillo, naranja, morado, rojo, total } = globalStats;
+  if (total > 0) {
+    const getPct = (val: number) => (val / total) * 100;
+    const pV = getPct(verde), pA = getPct(amarillo), pN = getPct(naranja), pM = getPct(morado), pR = getPct(rojo);
+    let current = 0;
+    const segments = [];
+    if (pV > 0) { segments.push(`#22c55e ${current}% ${current + pV}%`); current += pV; }
+    if (pM > 0) { segments.push(`#a855f7 ${current}% ${current + pM}%`); current += pM; }
+    if (pN > 0) { segments.push(`#fb923c ${current}% ${current + pN}%`); current += pN; }
+    if (pA > 0) { segments.push(`#facc15 ${current}% ${current + pA}%`); current += pA; }
+    if (pR > 0) { segments.push(`#ef4444 ${current}% ${current + pR}%`); current += pR; }
+    if (segments.length > 0) {
+      conicGradient = `conic-gradient(${segments.join(', ')})`;
+    }
+  }
 
   if (loading || !user) return (
     <div className="flex items-center justify-center min-h-screen bg-neutral-950">
@@ -604,6 +644,49 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                     })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── GRÁFICO GLOBAL ──────────────────────────────────────── */}
+            {tarea && globalStats.total > 0 && (
+              <div className="mt-8 border-t border-white/8 pt-8">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <PieChart size={16} /> Avance General de la Misión
+                </h3>
+                <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-8">
+                  {/* Gráfico Donut */}
+                  <div className="relative w-32 h-32 flex-shrink-0">
+                    <div className="absolute inset-0 rounded-full" style={{ background: conicGradient }}></div>
+                    <div className="absolute inset-2 bg-neutral-900 rounded-full flex flex-col items-center justify-center">
+                      <span className="text-2xl font-black text-white">{Math.round(((globalStats.total - globalStats.rojo) / globalStats.total) * 100)}%</span>
+                      <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Activos</span>
+                    </div>
+                  </div>
+                  
+                  {/* Leyenda */}
+                  <div className="flex-1 grid grid-cols-2 gap-y-3 gap-x-4 w-full">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-gray-400"><span className="w-2.5 h-2.5 rounded-sm bg-green-500"></span> Confirmados</span>
+                      <span className="font-mono text-white font-bold">{globalStats.verde}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-gray-400"><span className="w-2.5 h-2.5 rounded-sm bg-yellow-400"></span> En Revisión</span>
+                      <span className="font-mono text-white font-bold">{globalStats.amarillo}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-gray-400"><span className="w-2.5 h-2.5 rounded-sm bg-purple-500"></span> Leales</span>
+                      <span className="font-mono text-white font-bold">{globalStats.morado}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-gray-400"><span className="w-2.5 h-2.5 rounded-sm bg-orange-400"></span> Justificados</span>
+                      <span className="font-mono text-white font-bold">{globalStats.naranja}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs col-span-2 pt-2 border-t border-white/5 mt-1">
+                      <span className="flex items-center gap-1.5 text-gray-400"><span className="w-2.5 h-2.5 rounded-sm bg-red-500"></span> Pendientes (Sin activar)</span>
+                      <span className="font-mono text-red-400 font-bold">{globalStats.rojo} / {globalStats.total}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
