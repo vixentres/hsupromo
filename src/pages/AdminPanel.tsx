@@ -17,7 +17,7 @@ const COLOR_META: Record<EstadoColor, { bg: string; ring: string; label: string;
   rojo:    { bg: 'bg-red-500',    ring: 'ring-red-500',    label: 'Rojo',     desc: 'Pendiente / Castigado' },
   amarillo:{ bg: 'bg-yellow-400', ring: 'ring-yellow-400', label: 'Amarillo', desc: 'En revisión cruzada' },
   verde:   { bg: 'bg-green-500',  ring: 'ring-green-500',  label: 'Verde',    desc: 'Aprobado' },
-  morado:  { bg: 'bg-purple-500', ring: 'ring-purple-500', label: 'Morado',   desc: 'Auditor leal' },
+  morado:  { bg: 'bg-teal-500',   ring: 'ring-teal-500',   label: 'Verde (Reportó)', desc: 'Aprobado, reportó fallo ajeno' },
   naranja: { bg: 'bg-orange-400', ring: 'ring-orange-400', label: 'Naranja',  desc: 'Justificado' },
 };
 

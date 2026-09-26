@@ -27,7 +27,7 @@ flowchart TD
   CHECK -->|Falta alguno| AMAR([Quedas Pendiente\nAmarillo 🟡])
 
   R3 -.-> CATCH{¿Atrapaste a alguien\nque NO publicó?}
-  CATCH -->|Pones voto NO| MORADO([Ganas Estatus Auditor Leal\nMorado 🟣])
+  CATCH -->|Auditor vota NO (y es real)| MORADO([Misión Aprobada\ny Reportó Fallo 🟢])
   CATCH -->|No aplica| VERDE
   
   R2 -.-> EXCUSE{¿Tuviste un problema\ny el auditor lo validó?}
@@ -36,7 +36,7 @@ flowchart TD
   classDef default fill:#1f2937,stroke:#374151,stroke-width:2px,color:#fff;
   classDef success fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff;
   classDef fail fill:#7f1d1d,stroke:#ef4444,stroke-width:2px,color:#fff;
-  classDef special fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff;
+  classDef special fill:#115e59,stroke:#14b8a6,stroke-width:2px,color:#fff;
   classDef pending fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fff;
   classDef warning fill:#9a3412,stroke:#f97316,stroke-width:2px,color:#fff;
   

@@ -10,7 +10,7 @@ const STATUS_STYLE: Record<EstadoColor, { card: string; badge: string; label: st
   rojo:    { card: 'bg-red-900/20 border-red-500/30',     badge: 'bg-red-500',    label: 'Misión Pendiente' },
   amarillo:{ card: 'bg-yellow-900/20 border-yellow-500/30', badge: 'bg-yellow-500', label: 'Esperando Confirmación' },
   verde:   { card: 'bg-green-900/20 border-green-500/30',  badge: 'bg-green-500',  label: '✓ Misión Aprobada' },
-  morado:  { card: 'bg-purple-900/20 border-purple-500/30',badge: 'bg-purple-500', label: 'Auditor Leal' },
+  morado:  { card: 'bg-teal-900/20 border-teal-500/30',    badge: 'bg-teal-500',   label: '✓ Misión Aprobada (Reportó)' },
   naranja: { card: 'bg-orange-900/20 border-orange-500/30',badge: 'bg-orange-400', label: 'Justificado' },
 };
 
@@ -140,11 +140,21 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         if (revAuditor && revAuditor.length > 0) {
           const targetIds = revAuditor.map(r => r.promotor_id);
           const { data: selfRows } = await supabase
-            .from('revisiones').select('promotor_id, auditor_id, submission_status')
+            .from('revisiones').select('promotor_id, auditor_id, submission_status, admin_override')
             .eq('tarea_id', tareaData.id).in('promotor_id', targetIds);
           const selfStatusMap = new Map();
-          selfRows?.forEach(r => { if (r.promotor_id === r.auditor_id) selfStatusMap.set(r.promotor_id, r.submission_status); });
-          setAsignados(revAuditor.map(r => ({ ...r, target_published: selfStatusMap.get(r.promotor_id) !== 'rojo' })));
+          selfRows?.forEach(r => { 
+            if (r.promotor_id === r.auditor_id) {
+              selfStatusMap.set(r.promotor_id, { 
+                published: r.submission_status !== 'rojo',
+                finalStatus: r.admin_override || r.submission_status || 'rojo' 
+              });
+            }
+          });
+          setAsignados(revAuditor.map(r => {
+            const st = selfStatusMap.get(r.promotor_id) || { published: false, finalStatus: 'rojo' };
+            return { ...r, target_published: st.published, target_final_status: st.finalStatus };
+          }));
         } else { setAsignados([]); }
 
         // Quién me audita a mí
@@ -192,13 +202,19 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   const adminOverride = revision?.admin_override as EstadoColor | null;
   
   const pendingAudits = asignados.filter((a: any) => a.voto === 'PENDIENTE').length;
-  const caughtLiar = asignados.some((a: any) => a.voto === 'NO');
+  // If we voted NO on someone who ended up being approved (Verde), we lied.
+  const caughtLying = asignados.some((a: any) => a.voto === 'NO' && a.target_final_status === 'verde');
+  // If we voted NO on someone who ended up actually failing (Rojo/Amarillo), we are loyal.
+  const truthfulLoyal = asignados.some((a: any) => a.voto === 'NO' && a.target_final_status !== 'verde');
+  
   const anyJustificado = !isVendedor && incomingAudits.some((a: any) => a.voto === 'JUSTIFICADO');
 
   let computedStatus = rawStatus;
   if (rawStatus === 'amarillo' && (isVendedor || allAuditsSI)) {
-    if (isVendedor || pendingAudits === 0) {
-      computedStatus = caughtLiar ? 'morado' : 'verde';
+    if (caughtLying) {
+      computedStatus = 'rojo'; // Penalized for lying!
+    } else if (isVendedor || pendingAudits === 0) {
+      computedStatus = truthfulLoyal ? 'morado' : 'verde';
     } else {
       computedStatus = 'amarillo'; // Aprobado pero debe auditar para que se ponga verde
     }
@@ -674,7 +690,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                       <span className="font-mono text-white font-bold">{globalStats.amarillo}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 text-gray-400"><span className="w-2.5 h-2.5 rounded-sm bg-purple-500"></span> Leales</span>
+                      <span className="flex items-center gap-1.5 text-gray-400"><span className="w-2.5 h-2.5 rounded-sm bg-teal-500"></span> Conf. (Reportó)</span>
                       <span className="font-mono text-white font-bold">{globalStats.morado}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
@@ -703,7 +719,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                       let colorClass = 'bg-red-500';
                       if (st === 'amarillo') colorClass = 'bg-yellow-400';
                       if (st === 'verde') colorClass = 'bg-green-500';
-                      if (st === 'morado') colorClass = 'bg-purple-500';
+                      if (st === 'morado') colorClass = 'bg-teal-500';
                       if (st === 'naranja') colorClass = 'bg-orange-400';
 
                       const dateObj = h.tareas?.fecha_tarea ? new Date(h.tareas.fecha_tarea + 'T12:00:00') : new Date();
@@ -714,7 +730,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                           <div title={`Día: ${dateLabel} | Estado: ${st}`}
                             className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${colorClass} ${h.tareas?.fecha_tarea === selectedDate ? 'ring-4 ring-white ring-offset-2 ring-offset-neutral-900 scale-110' : 'opacity-60 group-hover:opacity-100'}`}>
                             {st === 'verde' && <ShieldCheck size={16} className="text-green-900" />}
-                            {st === 'morado' && <span className="text-[10px] font-black text-purple-900">PRO</span>}
+                            {st === 'morado' && <ShieldCheck size={16} className="text-teal-900" />}
                             {st === 'rojo' && <span className="text-[10px] font-black text-red-900">X</span>}
                             {st === 'amarillo' && <span className="text-[10px] font-black text-yellow-900">...</span>}
                           </div>
