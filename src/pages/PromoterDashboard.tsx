@@ -585,13 +585,13 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
 
             {/* ── AUDITORÍAS (solo promotores) ─────────────────── */}
             {!isVendedor && asignados.length > 0 && (
-              <div className="bg-neutral-900 border border-white/8 rounded-2xl p-4 sm:p-6">
-                <div className="flex justify-between items-center mb-5 flex-wrap gap-2">
+              <div className="bg-neutral-900 border border-white/8 rounded-2xl p-4">
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
                   <div>
-                    <h2 className="font-black flex items-center gap-2 text-base sm:text-lg">
+                    <h2 className="font-black flex items-center gap-2 text-base">
                       <ShieldCheck size={18} className="text-blue-400 flex-shrink-0" /> Auditorías Asignadas
                     </h2>
-                    <p className="text-gray-500 text-xs mt-0.5">Revisa a tus compañeros para completar la misión al 100%</p>
+                    <p className="text-gray-500 text-xs mt-0.5">Revisa a tus compañeros para completar tu misión</p>
                   </div>
                   <button
                     onClick={() => setLinkMode(p => p === 'perfil' ? 'historias' : 'perfil')}
@@ -602,64 +602,58 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                   </button>
                 </div>
 
-                {asignados.length === 0 ? (
-                  <p className="text-gray-600 text-sm text-center py-6">No tienes asignaciones de auditoría para esta tarea.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {asignados.map((asig) => {
-                      const promotor = asig.promotores;
-                      return (
-                        <div key={asig.id} className="bg-neutral-950 border border-white/8 p-3 sm:p-4 rounded-xl">
-                          <div className="flex items-start sm:items-center justify-between flex-wrap gap-3">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <p className="text-xs text-gray-500 uppercase font-bold">Revisar a:</p>
-                                {asig.target_published ? (
-                                  <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1">
-                                    🔔 Switch ON
-                                  </span>
-                                ) : (
-                                  <span className="bg-neutral-800 text-gray-500 text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                                    ⏳ Sin publicar
-                                  </span>
-                                )}
-                              </div>
-                              <a href={getInstagramUrl(promotor?.instagram)} target="_blank" rel="noopener noreferrer"
-                                className="font-bold text-white hover:text-blue-400 flex items-center gap-1.5 transition-colors text-sm">
-                                @{promotor?.instagram} <ExternalLink size={12} />
-                              </a>
-                              <p className="text-gray-600 text-xs mt-0.5">{promotor?.nombre}</p>
-                            </div>
-
-                            <div className="flex bg-neutral-900 rounded-xl p-1 border border-white/8 gap-0.5 flex-shrink-0">
-                              {(['SI', 'NO', 'JUSTIFICADO'] as const).map(v => {
-                                const active = asig.voto === v;
-                                const styles: Record<string, string> = {
-                                  SI: active ? 'bg-green-500/20 text-green-400 ring-1 ring-green-500/50' : 'text-gray-400 hover:text-green-400 hover:bg-white/5',
-                                  NO: active ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/50' : 'text-gray-400 hover:text-red-400 hover:bg-white/5',
-                                  JUSTIFICADO: active ? 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/50' : 'text-gray-400 hover:text-orange-400 hover:bg-white/5',
-                                };
-                                const labels: Record<string, string> = { SI: '✅ SÍ', NO: '❌ NO', JUSTIFICADO: '⏸ Just.' };
-                                return (
-                                  <button key={v} onClick={() => votar(asig.id, v)}
-                                    disabled={(isExpired || isRevClosed) && !isAdminRole}
-                                    className={`px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all ${styles[v]} disabled:opacity-40 disabled:cursor-not-allowed`}>
-                                    {labels[v]}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                <div className="space-y-3">
+                  {asignados.map((asig) => {
+                    const promotor = asig.promotores;
+                    return (
+                      <div key={asig.id} className="bg-neutral-950 border border-white/8 p-4 rounded-xl">
+                        {/* Header: nombre + estado switch */}
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <div className="min-w-0">
+                            <a href={getInstagramUrl(promotor?.instagram)} target="_blank" rel="noopener noreferrer"
+                              className="font-bold text-white hover:text-blue-400 flex items-center gap-1.5 transition-colors text-sm">
+                              @{promotor?.instagram} <ExternalLink size={12} />
+                            </a>
+                            <p className="text-gray-600 text-[11px] mt-0.5">{promotor?.nombre}</p>
                           </div>
-                          {asig.voto !== 'PENDIENTE' && (
-                            <p className="text-[10px] text-gray-600 mt-2">
-                              Votaste: <span className="font-bold text-gray-400">{asig.voto}</span>
-                            </p>
+                          {asig.target_published ? (
+                            <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                              🔔 Publicó
+                            </span>
+                          ) : (
+                            <span className="bg-neutral-800 text-gray-500 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                              ⏳ Sin publicar
+                            </span>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+
+                        {/* Botones de voto grandes y táctiles */}
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['SI', 'NO', 'JUSTIFICADO'] as const).map(v => {
+                            const active = asig.voto === v;
+                            const cfg = {
+                              SI: { label: '✅ SÍ', active: 'bg-green-500/20 text-green-400 border-green-500/50 ring-1 ring-green-500/50', idle: 'text-gray-400 bg-neutral-900 border-white/8 hover:border-green-500/30 hover:text-green-400' },
+                              NO: { label: '❌ NO', active: 'bg-red-500/20 text-red-400 border-red-500/50 ring-1 ring-red-500/50', idle: 'text-gray-400 bg-neutral-900 border-white/8 hover:border-red-500/30 hover:text-red-400' },
+                              JUSTIFICADO: { label: '⏸ Just.', active: 'bg-orange-500/20 text-orange-400 border-orange-500/50 ring-1 ring-orange-500/50', idle: 'text-gray-400 bg-neutral-900 border-white/8 hover:border-orange-500/30 hover:text-orange-400' },
+                            }[v];
+                            return (
+                              <button key={v} onClick={() => votar(asig.id, v)}
+                                disabled={(isExpired || isRevClosed) && !isAdminRole}
+                                className={`py-2.5 text-xs font-bold rounded-xl transition-all border ${active ? cfg.active : cfg.idle} disabled:opacity-40 disabled:cursor-not-allowed`}>
+                                {cfg.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {asig.voto !== 'PENDIENTE' && (
+                          <p className="text-[10px] text-gray-600 mt-2 text-center">
+                            Votaste: <span className="font-bold text-gray-400">{asig.voto}</span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

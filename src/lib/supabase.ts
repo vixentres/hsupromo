@@ -30,7 +30,7 @@ export const getCountdown = (targetDate: string | Date): string => {
 };
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
-export type Rol = 'promotor' | 'admin' | 'vendedor' | 'revisor';
+export type Rol = 'promotor' | 'admin' | 'vendedor' | 'revisor' | 'vendedor_revisor';
 export type EstadoColor = 'rojo' | 'amarillo' | 'verde' | 'morado' | 'naranja';
 export type VotoAuditoria = 'SI' | 'NO' | 'JUSTIFICADO' | 'PENDIENTE';
 

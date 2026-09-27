@@ -84,7 +84,9 @@ const DEFAULT_CONFIG: Config = {
 export default function AdminPanel() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'users' | 'tasks' | 'stats' | 'config' | 'flow'>('users');
+  const isRevisor = user?.rol === 'revisor' || user?.rol === 'vendedor_revisor';
+  const isAdmin = user?.rol === 'admin';
+  const [activeTab, setActiveTab] = useState<'users' | 'tasks' | 'stats' | 'config' | 'flow'>('tasks');
 
   // ── Usuarios ──────────────────────────────────────────────────────────────
   const [promotores, setPromotores] = useState<Promotor[]>([]);
@@ -437,10 +439,12 @@ export default function AdminPanel() {
     setCreatingTask(true);
     const titulo = newTask.titulo.trim() || `Tarea del día ${formatDate(TODAY)}`;
     
-    // Solo promotores para la asignación de revisiones cruzadas (no vendedores)
+    // Promotores para revisiones cruzadas
     const { data: promsData } = await supabase.from('promotores').select('id').eq('rol', 'promotor');
-    // Vendedores también participan en la tarea pero sin revisión cruzada
+    // Vendedores participan sin revisión cruzada
     const { data: vendedoresData } = await supabase.from('promotores').select('id').eq('rol', 'vendedor');
+    // Vendedor+Revisor participan como vendedor en la tarea (switch propio) + pueden revisar
+    const { data: vrData } = await supabase.from('promotores').select('id').eq('rol', 'vendedor_revisor');
 
     if (!promsData || promsData.length === 0) {
       alert('No hay promotores para asignar.');
@@ -448,7 +452,7 @@ export default function AdminPanel() {
       return;
     }
 
-    // Algoritmo aleatorio (Fisher-Yates Shuffle)
+    // Fisher-Yates Shuffle
     const proms = [...promsData];
     for (let i = proms.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -486,14 +490,20 @@ export default function AdminPanel() {
       selfRows.push({ tarea_id: tareaId, promotor_id: v.id, auditor_id: v.id, voto: 'SI', submission_status: 'rojo' });
     });
 
+    // Vendedor+Revisores: también tienen su propia entrada (pueden activar su switch)
+    (vrData || []).forEach(v => {
+      selfRows.push({ tarea_id: tareaId, promotor_id: v.id, auditor_id: v.id, voto: 'SI', submission_status: 'rojo' });
+    });
+
     await supabase.from('revisiones').insert([...selfRows, ...auditRows]);
 
     setNewTask({ titulo: '', horas_duracion: 24, horas_revision: 0, material_nuevo: '', link_publicitario: 'https://www.instagram.com/hsuevents.cl/' });
     setShowNewTaskLink(false);
     await Promise.all([loadTareas(), loadHeatMap()]);
     setCreatingTask(false);
-    alert(`"${titulo}" creada y asignada a ${proms.length} promotores y ${(vendedoresData || []).length} vendedores ✓`);
+    alert(`"${titulo}" creada y asignada a ${proms.length} promotores, ${(vendedoresData || []).length} vendedores y ${(vrData || []).length} vendedor+revisores ✓`);
   };
+
 
   // ── Mapa calor: override (toggle — mismo color = quita el override) ──────
   const overrideColor = async (revId: string | null, color: EstadoColor | null) => {
@@ -571,52 +581,65 @@ export default function AdminPanel() {
 
   const bannerPreview = transformDriveUrl(config.banner_url);
 
-  if (loading) return <div className="p-10 text-center text-gray-500">Cargando Admin Hub...</div>;
-  if (!user || (user.rol !== 'admin' && user.rol !== 'revisor')) return null;
+  if (loading) return <div className="p-10 text-center text-gray-500">Cargando panel...</div>;
+  if (!user || (user.rol !== 'admin' && user.rol !== 'revisor' && user.rol !== 'vendedor_revisor')) return null;
 
   if (impersonated) {
     return <PromoterDashboard impersonatedUser={impersonated} onExitImpersonation={() => setImpersonated(null)} allowSwitchEdit={true} />;
   }
 
-  const availableTabs = user.rol === 'revisor' ? (['tasks'] as const) : (['users', 'tasks', 'stats', 'config', 'flow'] as const);
+  const availableTabs = isAdmin
+    ? (['users', 'tasks', 'stats', 'config', 'flow'] as const)
+    : (['tasks'] as const);
   const currentTab = availableTabs.includes(activeTab as any) ? activeTab : 'tasks';
+
+  const TAB_META: Record<string, { icon: React.ReactNode; label: string }> = {
+    users:  { icon: <Users size={20} />,     label: 'Equipo' },
+    tasks:  { icon: <FileText size={20} />,  label: 'Revisiones' },
+    stats:  { icon: <BarChart3 size={20} />, label: 'Analíticas' },
+    config: { icon: <Settings size={20} />,  label: 'Config' },
+    flow:   { icon: <Eye size={20} />,       label: 'Diagrama' },
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8 font-sans">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-black text-white font-sans pb-20 md:pb-8">
+      <div className="max-w-6xl mx-auto px-3 pt-3 md:px-8 md:pt-8 space-y-4">
         
-        {/* Encabezado Principal */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-neutral-900 border border-white/8 rounded-2xl p-6">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <ShieldCheck className="text-blue-500" /> {user.rol === 'revisor' ? 'Panel de Revisión' : 'Admin Hub'}
-            </h1>
-            <p className="text-gray-500 text-sm mt-1">{user.rol === 'revisor' ? 'Revisión y gestión de auditorías' : 'Gestión de promotores, misiones y métricas'}</p>
+        {/* ── Header compacto ────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between bg-neutral-900 border border-white/8 rounded-2xl px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck size={18} className="text-blue-500 flex-shrink-0" />
+            <div>
+              <h1 className="text-base font-black tracking-tight leading-none">
+                {isAdmin ? 'Admin Hub' : 'Panel de Revisión'}
+              </h1>
+              <p className="text-gray-500 text-[10px] mt-0.5 hidden sm:block">
+                {isAdmin ? 'Promotores · Misiones · Métricas' : 'Revisión y gestión de auditorías'}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={loadAll} className="flex items-center gap-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded-xl transition-colors">
-              <RefreshCw size={14} /> Refrescar
+          <div className="flex items-center gap-2">
+            <button onClick={loadAll} className="flex items-center gap-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 px-3 py-2 rounded-xl transition-colors" title="Refrescar">
+              <RefreshCw size={14} />
+              <span className="hidden sm:inline">Refrescar</span>
             </button>
-            <button onClick={logout} className="flex items-center gap-1.5 text-xs font-bold text-red-400 bg-red-950/30 hover:bg-red-900/40 border border-red-500/20 px-4 py-2 rounded-xl transition-colors">
-              <LogOut size={14} /> Salir
+            <button onClick={handleLogout} className="flex items-center gap-1.5 text-xs font-bold text-red-400 bg-red-950/30 hover:bg-red-900/40 border border-red-500/20 px-3 py-2 rounded-xl transition-colors" title="Cerrar sesión">
+              <LogOut size={14} />
+              <span className="hidden sm:inline">Salir</span>
             </button>
           </div>
         </div>
 
-        {/* Tabs Principales */}
+        {/* ── Tabs en desktop (solo si hay más de un tab) ────────────────── */}
         {availableTabs.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="hidden md:flex gap-2">
             {availableTabs.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2
+                className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2
                 ${currentTab === tab ? 'bg-white text-neutral-900 shadow-lg' : 'bg-neutral-900 text-gray-400 hover:text-white border border-white/5 hover:bg-neutral-800'}`}>
-                {tab === 'users' && <Users size={16} />}
-                {tab === 'tasks' && <FileText size={16} />}
-                {tab === 'stats' && <BarChart3 size={16} />}
-                {tab === 'config' && <Settings size={16} />}
-                {tab === 'flow' && <Eye size={16} />}
-                {tab === 'users' ? 'Promotores' : tab === 'tasks' ? 'Tareas y Revisiones' : tab === 'stats' ? 'Analíticas' : tab === 'config' ? 'Configuración' : 'Diagrama de Flujo'}
+                {TAB_META[tab]?.icon}
+                {TAB_META[tab]?.label}
               </button>
             ))}
           </div>
@@ -774,6 +797,7 @@ export default function AdminPanel() {
                             <option value="promotor">Promotor</option>
                             <option value="vendedor">Vendedor</option>
                             <option value="revisor">Revisor</option>
+                            <option value="vendedor_revisor">Vendedor+Revisor</option>
                             <option value="admin">Admin</option>
                           </select>
                         </td>
@@ -1030,160 +1054,129 @@ export default function AdminPanel() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-gray-500 text-xs border-b border-white/8 bg-neutral-950/30">
-                        <th className="text-center pb-2 px-2 font-semibold w-8" title="¿Activó su switch?">Switch</th>
-                        <th className="text-left pb-2 px-3 font-semibold">Promotor</th>
-                        <th className="text-left pb-2 px-3 font-semibold">Debe revisar a</th>
-                        <th className="text-left pb-2 px-3 font-semibold">Color · Estado Real</th>
-                        <th className="text-center pb-2 px-3 font-semibold">Rev. Admin</th>
-                        <th className="text-center pb-2 px-2 font-semibold" title="Abrir Instagram">IG</th>
-                        <th className="text-right pb-2 px-2 font-semibold">Panel</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {getFilteredHeat().map(row => {
-                        const tarea = row.tareas[selectedHeatTask] || { self: null, asAuditor: [], incomingAudits: [] };
-                        const selfRev = tarea.self;
-                        const rawStatus = (selfRev?.submission_status || 'rojo') as EstadoColor;
-                        const adminOverride = selfRev?.admin_override as EstadoColor | null;
+                {/* ── Vista Cards (Mobile + Desktop) ───────────────────────── */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {getFilteredHeat().map(row => {
+                    const tarea = row.tareas[selectedHeatTask] || { self: null, asAuditor: [], incomingAudits: [] };
+                    const selfRev = tarea.self;
+                    const rawStatus = (selfRev?.submission_status || 'rojo') as EstadoColor;
+                    const adminOverride = selfRev?.admin_override as EstadoColor | null;
 
-                        // Auto-verde o Auto-morado
-                        const incomingAudits: any[] = tarea.incomingAudits || [];
-                        const allAuditsSI = incomingAudits.length > 0 && incomingAudits.every((a: any) => a.voto === 'SI');
-                        const isVendedor = row.promotor?.rol === 'vendedor';
+                    const incomingAudits: any[] = tarea.incomingAudits || [];
+                    const allAuditsSI = incomingAudits.length > 0 && incomingAudits.every((a: any) => a.voto === 'SI');
+                    const isVendedorRow = row.promotor?.rol === 'vendedor' || row.promotor?.rol === 'vendedor_revisor';
+                    
+                    const pendingAudits = (tarea.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
+                    
+                    let caughtLying = false;
+                    let truthfulLoyal = false;
+                    (tarea.asAuditor || []).forEach((r: any) => {
+                      if (r.voto === 'NO') {
+                        const targetRow = heatData.find(h => h.promotor.id === r.promotor_id);
+                        const tSelf = targetRow?.tareas[selectedHeatTask]?.self;
+                        const tStatus = tSelf?.admin_override || tSelf?.submission_status || 'rojo';
+                        if (tStatus === 'verde') caughtLying = true;
+                        else truthfulLoyal = true;
+                      }
+                    });
+
+                    const anyJustificado = incomingAudits.some((a: any) => a.voto === 'JUSTIFICADO');
+
+                    let computedStatus = rawStatus;
+                    if (rawStatus === 'amarillo' && (isVendedorRow || allAuditsSI)) {
+                      if (caughtLying) {
+                        computedStatus = 'rojo';
+                      } else if (isVendedorRow || pendingAudits === 0) {
+                        computedStatus = truthfulLoyal ? 'morado' : 'verde';
+                      } else {
+                        computedStatus = 'amarillo';
+                      }
+                    } else if (rawStatus === 'amarillo' && anyJustificado) {
+                      computedStatus = 'naranja';
+                    }
+
+                    const status = adminOverride || computedStatus;
+                    const hasPublished = rawStatus !== 'rojo';
+                    const hasAdminReview = !!adminOverride;
+                    const cm = COLOR_META[status];
+
+                    return (
+                      <div key={row.promotor?.id}
+                        className={`rounded-2xl border p-3.5 transition-all ${hasAdminReview ? 'bg-blue-950/20 border-blue-500/30' : 'bg-neutral-950/40 border-white/8'}`}>
                         
-                        const pendingAudits = (tarea.asAuditor || []).filter((r: any) => r.voto === 'PENDIENTE').length;
-                        
-                        // Evaluar auditorias realizadas para ver si mintió o reportó bien
-                        let caughtLying = false;
-                        let truthfulLoyal = false;
-                        (tarea.asAuditor || []).forEach((r: any) => {
-                          if (r.voto === 'NO') {
-                            const targetRow = heatData.find(h => h.promotor.id === r.promotor_id);
-                            const tSelf = targetRow?.tareas[selectedHeatTask]?.self;
-                            const tStatus = tSelf?.admin_override || tSelf?.submission_status || 'rojo';
-                            if (tStatus === 'verde') caughtLying = true;
-                            else truthfulLoyal = true;
-                          }
-                        });
-
-                        const anyJustificado = incomingAudits.some((a: any) => a.voto === 'JUSTIFICADO');
-
-                        let computedStatus = rawStatus;
-                        if (rawStatus === 'amarillo' && (isVendedor || allAuditsSI)) {
-                          if (caughtLying) {
-                            computedStatus = 'rojo';
-                          } else if (isVendedor || pendingAudits === 0) {
-                            computedStatus = truthfulLoyal ? 'morado' : 'verde';
-                          } else {
-                            computedStatus = 'amarillo';
-                          }
-                        } else if (rawStatus === 'amarillo' && anyJustificado) {
-                          computedStatus = 'naranja';
-                        }
-
-                        const status = adminOverride || computedStatus;
-                        const hasPublished = rawStatus !== 'rojo';
-                        const hasAdminReview = !!adminOverride;
-
-                        let stateText = '';
-                        if (status === 'morado') stateText = '✅ 100% OK (Reportó)';
-                        else if (status === 'verde') stateText = '✅ 100% OK';
-                        else if (status === 'amarillo' && allAuditsSI) stateText = '⏳ Aprobado, falta que audite';
-                        else if (status === 'naranja') stateText = 'Justificado';
-                        else if (hasPublished) stateText = pendingAudits > 0 ? 'Publicó · Espera revisión' : 'Publicó · Sin validar';
-                        else stateText = pendingAudits > 0 ? 'Sin publicar · Debe revisar' : 'Sin publicar';
-
-                        const rowBg = hasAdminReview ? 'bg-blue-950/20 border-l-2 border-blue-500/40' : '';
-
-                        return (
-                          <tr key={row.promotor?.id} className={`hover:bg-neutral-800/20 transition-colors ${rowBg}`}>
-                            {/* COL 1: Switch propio */}
-                            <td className="py-3 px-2 text-center">
-                              <span className={`inline-block w-3 h-3 rounded-full ${hasPublished ? 'bg-green-500' : 'bg-red-500'}`}
-                                title={hasPublished ? 'Activó su switch' : 'Switch apagado'} />
-                            </td>
-                            {/* COL 2: Promotor */}
-                            <td className="py-3 px-3">
+                        {/* Top row: switch dot + name + ig icon + panel icon */}
+                        <div className="flex items-start justify-between gap-2 mb-2.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5 ${hasPublished ? 'bg-green-500' : 'bg-red-500'}`}
+                              title={hasPublished ? 'Switch activado' : 'Switch apagado'} />
+                            <div className="min-w-0">
                               <div className="flex items-center gap-1">
-                                <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
-                                  className="font-semibold text-white hover:text-blue-400 transition-colors text-xs">
-                                  {row.promotor?.nombre}
-                                </a>
-                                {hasAdminReview && <span title="Auditado por Admin" className="text-sm leading-none">👑</span>}
+                                <span className="font-bold text-white text-sm truncate">{row.promotor?.nombre}</span>
+                                {hasAdminReview && <span className="text-xs leading-none">👑</span>}
                               </div>
-                              <span className="text-gray-600 text-[10px] block">@{row.promotor?.instagram}</span>
-                            </td>
-                            {/* COL 3: Debe revisar a */}
-                            <td className="py-3 px-3">
-                              <div className="flex flex-col gap-1 min-w-[130px]">
-                                {(tarea.asAuditor || []).map((a: any, i: number) => {
-                                  let icon = '⏳'; let iconClass = 'text-yellow-400';
-                                  if (a.voto === 'SI') { icon = '🟢'; iconClass = 'text-green-400'; }
-                                  else if (a.voto === 'NO') { icon = '🔴'; iconClass = 'text-red-400'; }
-                                  else if (a.voto === 'JUSTIFICADO') { icon = '🟠'; iconClass = 'text-orange-400'; }
-                                  return (
-                                    <div key={i} className="flex items-center gap-1.5 text-[11px]">
-                                      <span className={iconClass}>{icon}</span>
-                                      <span className="text-gray-300 font-medium">{a.target?.nombre || a.target?.instagram || '—'}</span>
-                                    </div>
-                                  );
-                                })}
-                                {(!tarea.asAuditor || tarea.asAuditor.length === 0) && <span className="text-gray-600 text-[10px]">—</span>}
-                              </div>
-                            </td>
-                            {/* COL 4: Color + Estado Real */}
-                            <td className="py-3 px-3">
-                              <div className="flex items-center gap-2">
-                                <span className={`w-3 h-3 rounded-full flex-shrink-0 ${COLOR_META[status].bg}`} title={COLOR_META[status].label} />
-                                <span className="text-[11px] text-gray-300 font-medium">{stateText}</span>
-                              </div>
-                            </td>
-                            {/* COL 5: Revisión Admin */}
-                            <td className="py-3 px-3 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                {(['verde', 'rojo', 'naranja'] as EstadoColor[]).map(col => (
-                                  <button key={col}
-                                    onClick={() => {
-                                      if (!selfRev?.id) return alert('Sin datos para este promotor en este día.');
-                                      // Toggle: si ya está activo ese color → quitar override (null)
-                                      overrideColor(selfRev.id, adminOverride === col ? null : col);
-                                    }}
-                                    className={`w-5 h-5 rounded-full transition-all ${COLOR_META[col].bg} ${adminOverride === col ? 'ring-2 ring-white ring-offset-1 ring-offset-neutral-900 scale-110' : 'opacity-40 hover:opacity-100'}`}
-                                    title={adminOverride === col ? `Quitar revisión (${COLOR_META[col].label})` : `Marcar como ${COLOR_META[col].label}`}
-                                  />
-                                ))}
-                              </div>
-                            </td>
-                            {/* COL NUEVA: Abrir Instagram */}
-                            <td className="py-3 px-2 text-center">
-                              <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center justify-center bg-white/5 hover:bg-white/15 border border-white/10 text-white rounded-lg p-1.5 transition-colors text-pink-500 hover:text-pink-400"
-                                title={`Abrir Instagram de @${row.promotor?.instagram}`}>
-                                <ExternalLink size={13} />
-                              </a>
-                            </td>
-                            {/* COL 6: Ver panel */}
-                            <td className="py-3 px-2 text-right">
-                              <button onClick={() => setImpersonated(row.promotor)}
-                                className="inline-flex items-center justify-center bg-white/5 hover:bg-white/15 border border-white/10 text-white rounded-lg p-1.5 transition-colors"
-                                title={`Ver panel como ${row.promotor?.nombre}`}>
-                                <Eye size={13} />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {getFilteredHeat().length === 0 && (
-                        <tr><td colSpan={7} className="py-8 text-center text-gray-600 text-xs">
-                          {heatColorFilter !== 'todos' ? `No hay promotores con estado "${COLOR_META[heatColorFilter].label}" en esta fecha.` : 'No hay datos para esta fecha.'}
-                        </td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                              <span className="text-gray-500 text-[10px] truncate block">@{row.promotor?.instagram}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center justify-center w-7 h-7 bg-white/5 hover:bg-white/15 border border-white/10 rounded-lg text-pink-400 transition-colors"
+                              title={`@${row.promotor?.instagram}`}>
+                              <ExternalLink size={12} />
+                            </a>
+                            <button onClick={() => setImpersonated(row.promotor)}
+                              className="flex items-center justify-center w-7 h-7 bg-white/5 hover:bg-white/15 border border-white/10 rounded-lg text-gray-300 transition-colors"
+                              title={`Ver panel de ${row.promotor?.nombre}`}>
+                              <Eye size={12} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Status badge */}
+                        <div className="flex items-center gap-1.5 mb-2.5">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cm.bg}`} />
+                          <span className="text-[11px] text-gray-300 font-medium">{cm.label}</span>
+                        </div>
+
+                        {/* Revisiones asignadas */}
+                        {(tarea.asAuditor || []).length > 0 && (
+                          <div className="mb-2.5 space-y-1">
+                            <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider">Revisó a</span>
+                            {(tarea.asAuditor || []).map((a: any, i: number) => {
+                              const vIcon = a.voto === 'SI' ? '🟢' : a.voto === 'NO' ? '🔴' : a.voto === 'JUSTIFICADO' ? '🟠' : '⏳';
+                              return (
+                                <div key={i} className="flex items-center gap-1.5 text-[11px]">
+                                  <span>{vIcon}</span>
+                                  <span className="text-gray-300">{a.target?.nombre || `@${a.target?.instagram}` || '—'}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Admin override buttons */}
+                        <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                          <span className="text-[10px] text-gray-600 font-bold uppercase tracking-wider flex-1">Rev. Admin</span>
+                          <div className="flex items-center gap-1.5">
+                            {(['verde', 'rojo', 'naranja'] as EstadoColor[]).map(col => (
+                              <button key={col}
+                                onClick={() => {
+                                  if (!selfRev?.id) return alert('Sin datos para este promotor en este día.');
+                                  overrideColor(selfRev.id, adminOverride === col ? null : col);
+                                }}
+                                className={`w-6 h-6 rounded-full transition-all ${COLOR_META[col].bg} ${adminOverride === col ? 'ring-2 ring-white ring-offset-1 ring-offset-neutral-950 scale-110' : 'opacity-40 hover:opacity-100'}`}
+                                title={adminOverride === col ? `Quitar revisión (${COLOR_META[col].label})` : `Marcar como ${COLOR_META[col].label}`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {getFilteredHeat().length === 0 && (
+                    <div className="col-span-full py-10 text-center text-gray-600 text-xs">
+                      {heatColorFilter !== 'todos' ? `No hay promotores con estado "${COLOR_META[heatColorFilter].label}" en esta fecha.` : 'No hay datos para esta fecha.'}
+                    </div>
+                  )}
                 </div>
               </div>
               </>
@@ -1574,6 +1567,29 @@ export default function AdminPanel() {
         )}
 
       </div>
+
+      {/* ── Bottom Nav Bar (Mobile Only) ────────────────────────────────── */}
+      {availableTabs.length > 1 && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-neutral-950/95 backdrop-blur-xl border-t border-white/10 flex items-center justify-around px-2 py-1 safe-area-bottom">
+          {availableTabs.map(tab => {
+            const isActive = currentTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all min-w-[56px] ${isActive ? 'text-white' : 'text-gray-500'}`}
+              >
+                <div className={`p-2 rounded-xl transition-all ${isActive ? 'bg-white text-neutral-900' : 'hover:bg-white/5'}`}>
+                  {TAB_META[tab]?.icon}
+                </div>
+                <span className={`text-[10px] font-bold leading-none ${isActive ? 'text-white' : 'text-gray-600'}`}>
+                  {TAB_META[tab]?.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 }
