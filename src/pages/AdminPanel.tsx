@@ -106,7 +106,7 @@ export default function AdminPanel() {
   const [editingTaskTitle, setEditingTaskTitle] = useState<{ id: string; titulo: string; link_publicitario: string } | null>(null);
   const [heatCountdown, setHeatCountdown] = useState('');
   const [heatRevCountdown, setHeatRevCountdown] = useState('');
-  const [newTaskAuditores, setNewTaskAuditores] = useState(1);
+  const [newTaskAuditores, setNewTaskAuditores] = useState(0);
 
   // ── Config ────────────────────────────────────────────────────────────────
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
@@ -567,6 +567,15 @@ export default function AdminPanel() {
       return aRev === bRev ? 0 : aRev ? 1 : -1;
     });
 
+    if (user?.rol === 'revisor' || user?.rol === 'vendedor_revisor') {
+      const allRevisors = promotores.filter(p => p.rol === 'revisor' || p.rol === 'vendedor_revisor').sort((a, b) => a.id.localeCompare(b.id));
+      const myIndex = allRevisors.findIndex(r => r.id === user.id);
+      if (myIndex !== -1 && allRevisors.length > 0) {
+        const offset = Math.floor((list.length / allRevisors.length) * myIndex);
+        list = [...list.slice(offset), ...list.slice(0, offset)];
+      }
+    }
+
     return list;
   };
 
@@ -620,6 +629,11 @@ export default function AdminPanel() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {user.rol === 'vendedor_revisor' && (
+              <button onClick={() => navigate('/promotor/dashboard')} className="flex items-center gap-1.5 text-xs font-bold text-blue-400 bg-blue-950/30 hover:bg-blue-900/40 border border-blue-500/20 px-3 py-2 rounded-xl transition-colors" title="Mi Panel">
+                <span className="hidden sm:inline">Mi Panel</span>
+              </button>
+            )}
             <button onClick={loadAll} className="flex items-center gap-1.5 text-xs font-bold bg-neutral-800 hover:bg-neutral-700 px-3 py-2 rounded-xl transition-colors" title="Refrescar">
               <RefreshCw size={14} />
               <span className="hidden sm:inline">Refrescar</span>

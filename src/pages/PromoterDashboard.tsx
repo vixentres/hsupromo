@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Folder, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOut, Clock, Link as LinkIcon, RefreshCw, Megaphone, PieChart } from 'lucide-react';
+import { Copy, Folder, ExternalLink, ShieldCheck, ToggleLeft, ToggleRight, LogOut, Clock, Link as LinkIcon, RefreshCw, Megaphone, PieChart, User, PlayCircle } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase, getCountdown, type Tarea, type Revision, type EstadoColor } from '../lib/supabase';
@@ -31,7 +31,6 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   const [asignados, setAsignados] = useState<any[]>([]);
   const [incomingAudits, setIncomingAudits] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
-  const [linkMode, setLinkMode] = useState<'perfil' | 'historias'>('historias');
   const [loadingData, setLoadingData] = useState(true);
   const [countdown, setCountdown] = useState('');
   const [revCountdown, setRevCountdown] = useState('');
@@ -315,9 +314,6 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     }
   };
 
-  const getInstagramUrl = (ig: string) =>
-    linkMode === 'historias' ? `https://www.instagram.com/stories/${ig}/` : `https://www.instagram.com/${ig}/`;
-
   const style = STATUS_STYLE[myStatus];
 
   let conicGradient = 'bg-neutral-800';
@@ -367,10 +363,13 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           <div className="min-w-0 flex items-center gap-2">
             <span className="font-black text-sm text-white">HSU</span>
-            <div className="flex gap-1 ml-2 bg-neutral-950 p-1 rounded-lg border border-white/5">
-              <button onClick={() => setViewMode('panel')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors ${viewMode === 'panel' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Panel</button>
-              <button onClick={() => setViewMode('flow')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors ${viewMode === 'flow' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Diagrama</button>
-              <button onClick={() => setViewMode('perfil')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors ${viewMode === 'perfil' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Mis Datos</button>
+            <div className="flex gap-1 ml-2 bg-neutral-950 p-1 rounded-lg border border-white/5 overflow-x-auto scrollbar-hide">
+              <button onClick={() => setViewMode('panel')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap ${viewMode === 'panel' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Panel</button>
+              <button onClick={() => setViewMode('flow')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap ${viewMode === 'flow' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Diagrama</button>
+              <button onClick={() => setViewMode('perfil')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap ${viewMode === 'perfil' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Mis Datos</button>
+              {actualUser.rol === 'vendedor_revisor' && !impersonatedUser && (
+                <button onClick={() => navigate('/admin')} className="px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap text-blue-400 hover:bg-blue-500/10">Revisión</button>
+              )}
             </div>
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
@@ -593,13 +592,6 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                     </h2>
                     <p className="text-gray-500 text-xs mt-0.5">Revisa a tus compañeros para completar tu misión</p>
                   </div>
-                  <button
-                    onClick={() => setLinkMode(p => p === 'perfil' ? 'historias' : 'perfil')}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
-                  >
-                    {linkMode === 'historias' ? <ToggleRight size={18} className="text-blue-400" /> : <ToggleLeft size={18} className="text-gray-600" />}
-                    {linkMode === 'historias' ? 'Stories' : 'Perfil'}
-                  </button>
                 </div>
 
                 <div className="space-y-3">
@@ -610,10 +602,19 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                         {/* Header: nombre + estado switch */}
                         <div className="flex items-center justify-between gap-3 mb-3">
                           <div className="min-w-0">
-                            <a href={getInstagramUrl(promotor?.instagram)} target="_blank" rel="noopener noreferrer"
-                              className="font-bold text-white hover:text-blue-400 flex items-center gap-1.5 transition-colors text-sm">
-                              @{promotor?.instagram} <ExternalLink size={12} />
-                            </a>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white text-sm truncate">@{promotor?.instagram}</span>
+                              <div className="flex gap-1.5 flex-shrink-0">
+                                <a href={`https://www.instagram.com/${promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                                  className="w-7 h-7 flex items-center justify-center bg-white/5 hover:bg-white/15 border border-white/10 rounded-lg text-pink-400 transition-colors" title="Ver Perfil">
+                                  <User size={12} />
+                                </a>
+                                <a href={`https://www.instagram.com/stories/${promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                                  className="w-7 h-7 flex items-center justify-center bg-white/5 hover:bg-white/15 border border-white/10 rounded-lg text-purple-400 transition-colors" title="Ver Historias">
+                                  <PlayCircle size={12} />
+                                </a>
+                              </div>
+                            </div>
                             <p className="text-gray-600 text-[11px] mt-0.5">{promotor?.nombre}</p>
                           </div>
                           {asig.target_published ? (
