@@ -586,7 +586,7 @@ export default function AdminPanel() {
     setSavingConfig(false);
   };
 
-  const handleLogout = () => { logout(); navigate('/'); };
+  const handleLogout = () => { logout(); navigate('/promotor/login'); };
 
   const bannerPreview = transformDriveUrl(config.banner_url);
 

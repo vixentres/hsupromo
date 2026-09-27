@@ -272,7 +272,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     loadDashboard();
   };
 
-  const handleLogout = () => { logout(); navigate('/'); };
+  const handleLogout = () => { logout(); navigate('/promotor/login'); };
 
   const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'perfil'>('panel');
   const [profileData, setProfileData] = useState({
