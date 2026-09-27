@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Settings, BarChart3, Plus, Trash2, Save,
-  LogOut, Search, Copy, ChevronUp, ChevronDown, Clock, ShieldCheck, RefreshCw, FileText, Eye, ExternalLink
+  LogOut, Search, Copy, ChevronUp, ChevronDown, Clock, ShieldCheck, RefreshCw, FileText, Eye, ExternalLink, User, PlayCircle
 } from 'lucide-react';
 import { supabase, transformDriveUrl, type Promotor, type Tarea, type EstadoColor, type Config, type Rol } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -1134,8 +1134,13 @@ export default function AdminPanel() {
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <a href={`https://www.instagram.com/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
                               className="flex items-center justify-center w-7 h-7 bg-white/5 hover:bg-white/15 border border-white/10 rounded-lg text-pink-400 transition-colors"
-                              title={`@${row.promotor?.instagram}`}>
-                              <ExternalLink size={12} />
+                              title={`Perfil de @${row.promotor?.instagram}`}>
+                              <User size={12} />
+                            </a>
+                            <a href={`https://www.instagram.com/stories/${row.promotor?.instagram}/`} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center justify-center w-7 h-7 bg-white/5 hover:bg-white/15 border border-white/10 rounded-lg text-purple-400 transition-colors"
+                              title={`Historias de @${row.promotor?.instagram}`}>
+                              <PlayCircle size={12} />
                             </a>
                             <button onClick={() => setImpersonated(row.promotor)}
                               className="flex items-center justify-center w-7 h-7 bg-white/5 hover:bg-white/15 border border-white/10 rounded-lg text-gray-300 transition-colors"
