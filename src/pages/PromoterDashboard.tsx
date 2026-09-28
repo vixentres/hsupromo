@@ -23,7 +23,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   const navigate = useNavigate();
 
   const actualUser = impersonatedUser || user;
-  const isVendedor = (actualUser as any)?.rol === 'vendedor';
+  const isVendedor = (actualUser as any)?.rol === 'vendedor' || (actualUser as any)?.rol === 'vendedor_revisor';
   const isAdminViewingAs = !!impersonatedUser;
 
   const [tarea, setTarea] = useState<Tarea | null>(null);
