@@ -464,11 +464,56 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         {loadingData ? (
           <div className="flex justify-center py-20 text-gray-600 text-sm">Cargando datos del día...</div>
         ) : !tarea ? (
-          <div className="bg-neutral-900 border border-white/8 rounded-2xl p-10 sm:p-12 text-center">
-            <Clock size={32} className="text-gray-700 mx-auto mb-3" />
-            <p className="text-gray-400 font-semibold">No hay tarea activa para hoy</p>
-            <p className="text-gray-600 text-xs mt-1">El administrador publicará la misión pronto.</p>
-          </div>
+          <>
+            <div className="bg-neutral-900 border border-white/8 rounded-2xl p-10 sm:p-12 text-center mb-6">
+              <Clock size={32} className="text-gray-700 mx-auto mb-3" />
+              <p className="text-gray-400 font-semibold">No hay tarea activa para hoy</p>
+              <p className="text-gray-600 text-xs mt-1">El administrador publicará la misión pronto.</p>
+            </div>
+            <div className="space-y-3 mt-5 mb-6">
+              {materialUrl && (
+                <a href={materialUrl} target="_blank" rel="noopener noreferrer" onClick={() => { try { copyLink(); } catch(_) {} }} className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer">
+                  <Folder size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
+                  Descargar Material RRSS
+                </a>
+              )}
+              <a href="https://www.instagram.com/hsuevents.cl/" target="_blank" rel="noopener noreferrer" onClick={() => { try { copyLink(); } catch(_) {} }} className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-purple-900/20 hover:bg-purple-900/30 border border-purple-500/20 text-purple-300 font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer">
+                <Megaphone size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
+                Ver Publicación Oficial
+              </a>
+            </div>
+            {history.length > 0 && (
+              <div className="mt-8 border-t border-white/8 pt-8">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Clock size={16} /> Tu Historial de Misiones
+                </h3>
+                <div className="bg-neutral-900 border border-white/8 rounded-2xl p-4 sm:p-6 overflow-x-auto">
+                  <div className="flex gap-2 min-w-max">
+                    {history.map((h, i) => {
+                      const st = h.admin_override || h.submission_status || 'rojo';
+                      let colorClass = 'bg-red-500';
+                      if (st === 'amarillo') colorClass = 'bg-yellow-400';
+                      if (st === 'verde') colorClass = 'bg-green-500';
+                      if (st === 'morado') colorClass = 'bg-teal-500';
+                      if (st === 'naranja') colorClass = 'bg-orange-400';
+                      const dateObj = h.tareas?.fecha_tarea ? new Date(h.tareas.fecha_tarea + 'T12:00:00') : new Date();
+                      const dateLabel = dateObj.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+                      return (
+                        <button key={i} onClick={() => h.tareas?.fecha_tarea && setSelectedDate(h.tareas.fecha_tarea)} className="flex flex-col items-center gap-2 group outline-none">
+                          <div title={`Día: ${dateLabel} | Estado: ${st}`} className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${colorClass} opacity-60 group-hover:opacity-100`}>
+                            {st === 'verde' && <ShieldCheck size={16} className="text-green-900" />}
+                            {st === 'morado' && <ShieldCheck size={16} className="text-teal-900" />}
+                            {st === 'amarillo' && <span className="text-[10px] font-black text-yellow-900">...</span>}
+                          </div>
+                          <span className="text-[10px] font-semibold text-gray-500">{dateLabel}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <>
             {/* ── MI TAREA ──────────────────────────────────────── */}
