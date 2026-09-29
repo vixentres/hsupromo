@@ -51,7 +51,7 @@ export default function LandingPage() {
       .from('promotores').select('id, rol, ticketmaster_url').eq('instagram', ref).maybeSingle();
     if (promotor) {
       setPromotorId(promotor.id);
-      if (promotor.rol === 'vendedor' && promotor.ticketmaster_url) {
+      if (promotor.ticketmaster_url) {
         setVendedorTmUrl(promotor.ticketmaster_url);
       }
       return promotor.id;
