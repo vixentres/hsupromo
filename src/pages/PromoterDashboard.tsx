@@ -36,6 +36,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   const [revCountdown, setRevCountdown] = useState('');
   const [copied, setCopied] = useState(false);
   const [materialUrl, setMaterialUrl] = useState('');
+  const [globalTmUrl, setGlobalTmUrl] = useState('');
   const [globalStats, setGlobalStats] = useState({ verde: 0, amarillo: 0, rojo: 0, naranja: 0, morado: 0, total: 0 });
 
   useEffect(() => {
@@ -99,8 +100,11 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   }, [tarea]);
 
   const loadInitialData = async () => {
-    const { data: cfg } = await supabase.from('config').select('material_nuevo_url').eq('id', 1).single();
-    if (cfg) setMaterialUrl(cfg.material_nuevo_url || '');
+    const { data: cfg } = await supabase.from('config').select('material_nuevo_url, ticketmaster_url').eq('id', 1).single();
+    if (cfg) {
+      setMaterialUrl(cfg.material_nuevo_url || '');
+      setGlobalTmUrl(cfg.ticketmaster_url || '');
+    }
 
     if (actualUser) {
       const uid = (actualUser as any).id;
@@ -306,8 +310,8 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   const copyLink = async () => {
     const instagram = (actualUser as any)?.instagram;
     const tmUrl = profileData.ticketmaster_url;
-    if (!instagram && !tmUrl) return;
-    const url = tmUrl ? tmUrl : `${window.location.origin}/?ref=${instagram}`;
+    if (!instagram && !tmUrl && !globalTmUrl) return;
+    const url = tmUrl ? tmUrl : (globalTmUrl ? globalTmUrl : `${window.location.origin}/?ref=${instagram}`);
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);

@@ -415,10 +415,13 @@ export default function AdminPanel() {
     setSavingUsers(false);
   };
 
-  const copyLink = async (instagram: string, type: 'ref' | 'login') => {
-    const url = type === 'ref'
-      ? `${window.location.origin}/?ref=${instagram}`
-      : `${window.location.origin}/promotor/login`;
+  const copyLink = async (instagram: string, type: 'ref' | 'login', personalTmUrl?: string) => {
+    let url;
+    if (type === 'ref') {
+      url = personalTmUrl ? personalTmUrl : (config.ticketmaster_url ? config.ticketmaster_url : `${window.location.origin}/?ref=${instagram}`);
+    } else {
+      url = `${window.location.origin}/promotor/login`;
+    }
     await navigator.clipboard.writeText(url);
     setCopied(instagram + type);
     setTimeout(() => setCopied(null), 1500);
@@ -817,7 +820,7 @@ export default function AdminPanel() {
                         </td>
                         {/* Link Ref */}
                         <td className="px-3 py-1.5 text-center">
-                          <button onClick={() => copyLink(ig, 'ref')} title="Copiar link de referido"
+                          <button onClick={() => copyLink(ig, 'ref', val('ticketmaster_url'))} title="Copiar link de referido"
                             className="text-[10px] font-bold text-gray-500 hover:text-green-400 bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
                             {copied === ig + 'ref' ? '✓ Copiado' : '🔗 Ref'}
                           </button>
