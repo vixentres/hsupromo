@@ -197,6 +197,8 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
 
   // Auto-verde: si es promotor con todos auditores SI; si es vendedor basta con amarillo
   const allAuditsSI = !isVendedor && incomingAudits.length > 0 && incomingAudits.every((a: any) => a.voto === 'SI');
+  const isSimpleTask = !isVendedor && incomingAudits.length === 0 && asignados.length === 0;
+  
   const rawStatus = (revision?.submission_status || 'rojo') as EstadoColor;
   const adminOverride = revision?.admin_override as EstadoColor | null;
   
@@ -209,10 +211,10 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   const anyJustificado = !isVendedor && incomingAudits.some((a: any) => a.voto === 'JUSTIFICADO');
 
   let computedStatus = rawStatus;
-  if (rawStatus === 'amarillo' && (isVendedor || allAuditsSI)) {
+  if (rawStatus === 'amarillo' && (isVendedor || allAuditsSI || isSimpleTask)) {
     if (caughtLying) {
       computedStatus = 'rojo'; // Penalized for lying!
-    } else if (isVendedor || pendingAudits === 0) {
+    } else if (isVendedor || pendingAudits === 0 || isSimpleTask) {
       computedStatus = truthfulLoyal ? 'morado' : 'verde';
     } else {
       computedStatus = 'amarillo'; // Aprobado pero debe auditar para que se ponga verde
@@ -276,7 +278,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
 
   const [viewMode, setViewMode] = useState<'panel' | 'flow' | 'perfil'>('panel');
   const [profileData, setProfileData] = useState({
-    nombre: '', instagram: '', telefono: '', rut: '', clave: ''
+    nombre: '', instagram: '', telefono: '', rut: '', clave: '', ticketmaster_url: ''
   });
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -287,7 +289,8 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         instagram: (actualUser as any).instagram || '',
         telefono: (actualUser as any).telefono || '',
         rut: (actualUser as any).rut || '',
-        clave: (actualUser as any).clave || ''
+        clave: (actualUser as any).clave || '',
+        ticketmaster_url: (actualUser as any).ticketmaster_url || ''
       });
     }
   }, [actualUser]);
@@ -301,10 +304,10 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
   };
 
   const copyLink = async () => {
-    // Usa actualUser para que el modo espectador copie el link del promotor, no del admin
     const instagram = (actualUser as any)?.instagram;
-    if (!instagram) return;
-    const url = `${window.location.origin}/?ref=${instagram}`;
+    const tmUrl = profileData.ticketmaster_url;
+    if (!instagram && !tmUrl) return;
+    const url = tmUrl ? tmUrl : `${window.location.origin}/?ref=${instagram}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -365,7 +368,9 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
             <span className="font-black text-sm text-white">HSU</span>
             <div className="flex gap-1 ml-2 bg-neutral-950 p-1 rounded-lg border border-white/5 overflow-x-auto scrollbar-hide">
               <button onClick={() => setViewMode('panel')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap ${viewMode === 'panel' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Panel</button>
-              <button onClick={() => setViewMode('flow')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap ${viewMode === 'flow' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Diagrama</button>
+              {(!isSimpleTask) && (
+                <button onClick={() => setViewMode('flow')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap ${viewMode === 'flow' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Diagrama</button>
+              )}
               <button onClick={() => setViewMode('perfil')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap ${viewMode === 'perfil' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Mis Datos</button>
               {actualUser.rol === 'vendedor_revisor' && !impersonatedUser && (
                 <button onClick={() => navigate('/admin')} className="px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap text-blue-400 hover:bg-blue-500/10">Revisión</button>
