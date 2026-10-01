@@ -121,6 +121,7 @@ export default function AdminPanel() {
   const heatMapRef = React.useRef<HTMLDivElement>(null);
   const [heatColorFilter, setHeatColorFilter] = useState<EstadoColor | 'todos'>('todos');
   const [heatAdminFilter, setHeatAdminFilter] = useState<'todos' | 'revisadas' | 'pendientes'>('todos');
+  const [heatRolFilter, setHeatRolFilter] = useState<'todos' | 'promotor' | 'vendedor'>('todos');
   const [heatSort, setHeatSort] = useState<'nombre' | 'estado'>('nombre');
   const [selectedHeatTask, setSelectedHeatTask] = useState<string>('');
   const [heatMapOpen, setHeatMapOpen] = useState(true);
@@ -135,7 +136,7 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [csvData, setCsvData] = useState('');
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll().then(() => { if (isAdmin) ensureTodayTask(); }); }, []);
 
   const handleImportCsv = () => {
     if (!csvData.trim()) return;
@@ -464,7 +465,7 @@ export default function AdminPanel() {
 
     const { data: tarea, error } = await supabase.from('tareas').insert({
       titulo, horas_duracion: newTask.horas_duracion, horas_revision: newTask.horas_revision || 0,
-      material_nuevo: newTask.material_nuevo, activa: true, fecha_tarea: TODAY,
+      material_nuevo: newTask.material_nuevo, activa: true, fecha_tarea: TODAY, auto_generada: false,
       link_publicitario: newTask.link_publicitario || 'https://www.instagram.com/hsuevents.cl/'
     }).select().single();
 
@@ -524,6 +525,69 @@ export default function AdminPanel() {
     await Promise.all([loadTareas(), loadHeatMap()]);
   };
 
+  // ── Auto-crear tarea del día si no existe ─────────────────────────────────
+  const ensureTodayTask = async () => {
+    // Verificar si ya existe tarea para hoy
+    const { data: existing } = await supabase.from('tareas').select('id, auto_generada').eq('fecha_tarea', TODAY);
+    if (existing && existing.length > 0) return; // Ya existe, no hacer nada
+
+    // Obtener todos los participantes
+    const { data: promsData } = await supabase.from('promotores').select('id, rol').in('rol', ['promotor', 'vendedor', 'vendedor_revisor']);
+    if (!promsData || promsData.length === 0) return;
+
+    // Crear tarea fantasma auto-generada (sin auditores cruzados por defecto)
+    const { data: tarea, error } = await supabase.from('tareas').insert({
+      titulo: `Tarea del día ${formatDate(TODAY)}`,
+      horas_duracion: 24,
+      horas_revision: 0,
+      activa: true,
+      fecha_tarea: TODAY,
+      link_publicitario: 'https://www.instagram.com/hsuevents.cl/',
+      auto_generada: true,
+    }).select().single();
+
+    if (error || !tarea) return;
+
+    // Desactivar otras tareas del pasado
+    await supabase.from('tareas').update({ activa: false }).neq('id', tarea.id);
+
+    // Crear solo self-rows para todos (sin auditores cruzados)
+    const selfRows = promsData.map(p => ({
+      tarea_id: tarea.id,
+      promotor_id: p.id,
+      auditor_id: p.id,
+      voto: 'SI',
+      submission_status: 'rojo',
+    }));
+    await supabase.from('revisiones').insert(selfRows);
+    await Promise.all([loadTareas(), loadHeatMap()]);
+  };
+
+  // ── Vigilar consolidación de tarea auto-generada (3+ switches) ────────────
+  const checkAutoTaskConsolidation = async () => {
+    const { data: autoTask } = await supabase
+      .from('tareas').select('id, auto_generada, consolidada_at')
+      .eq('fecha_tarea', TODAY).eq('auto_generada', true).single();
+    if (!autoTask || autoTask.consolidada_at) return;
+
+    // Contar switches activados (submission_status != 'rojo')
+    const { data: switches } = await supabase
+      .from('revisiones')
+      .select('id')
+
+    // Contar revisiones donde auditor = promotor y status != rojo
+    const { data: activeSwitches } = await supabase.rpc('count_active_switches', { p_tarea_id: autoTask.id });
+    const count = typeof activeSwitches === 'number' ? activeSwitches : 0;
+
+    if (count >= 3) {
+      // Consolidar: marcar con timestamp actual como inicio real
+      await supabase.from('tareas').update({
+        auto_generada: false,
+        consolidada_at: new Date().toISOString(),
+      }).eq('id', autoTask.id);
+    }
+  };
+
   // ── Mapa de calor: filtros ─────────────────────────────────────────────────
   const getFilteredHeat = () => {
     let list = [...heatData];
@@ -541,6 +605,12 @@ export default function AdminPanel() {
       list = list.filter(row => !!row.tareas[taskId]?.self?.admin_override);
     } else if (heatAdminFilter === 'pendientes') {
       list = list.filter(row => !row.tareas[taskId]?.self?.admin_override);
+    }
+
+    if (heatRolFilter === 'promotor') {
+      list = list.filter(row => row.promotor?.rol === 'promotor');
+    } else if (heatRolFilter === 'vendedor') {
+      list = list.filter(row => row.promotor?.rol === 'vendedor' || row.promotor?.rol === 'vendedor_revisor');
     }
 
     if (heatSort === 'nombre') {
@@ -1069,6 +1139,18 @@ export default function AdminPanel() {
                       </button>
                     ))}
                   </div>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {([
+                      { key: 'todos', label: '👥 Todos' },
+                      { key: 'promotor', label: '🎯 Promotores' },
+                      { key: 'vendedor', label: '🔵 Vendedores' },
+                    ] as const).map(({ key, label }) => (
+                      <button key={key} onClick={() => setHeatRolFilter(key)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${heatRolFilter === key ? (key === 'vendedor' ? 'bg-blue-600 text-white' : 'bg-white text-neutral-900') : 'text-gray-400 hover:text-white bg-neutral-900 border border-white/8'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* ── Vista Cards (Mobile + Desktop) ───────────────────────── */}
@@ -1130,6 +1212,7 @@ export default function AdminPanel() {
                               <div className="flex items-center gap-1">
                                 <span className="font-bold text-white text-sm truncate">{row.promotor?.nombre}</span>
                                 {hasAdminReview && <span className="text-xs leading-none">👑</span>}
+                                {isVendedorRow && <span className="text-[9px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide flex-shrink-0">Vendedor</span>}
                               </div>
                               <span className="text-gray-500 text-[10px] truncate block">@{row.promotor?.instagram}</span>
                             </div>
@@ -1232,7 +1315,7 @@ export default function AdminPanel() {
                                       setSelectedHeatTask(t.id);
                                       setHeatMapOpen(true);
                                       heatMapRef.current?.scrollIntoView({ behavior: 'smooth' });
-                                    }}>{formatDate(t.fecha)}</span>
+                                    }}>{formatDate(t.fecha)}{(t as any).auto_generada && <span className="ml-1 text-[9px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1 rounded font-bold">AUTO</span>}</span>
                                     <button onClick={() => deleteTask(t.id, t.titulo)} className="text-gray-600 hover:text-red-400 transition-colors" title="Eliminar tarea">
                                       <Trash2 size={12} />
                                     </button>
@@ -1383,6 +1466,65 @@ export default function AdminPanel() {
                       </tfoot>
                     )}
                   </table>
+                </div>
+              </div>
+
+              {/* ── Gráfico Diario de Participación ─────────────────────── */}
+              <div className="bg-neutral-900 border border-white/8 rounded-2xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/8">
+                  <h2 className="font-black text-base flex items-center gap-2">📊 Participación Diaria</h2>
+                  <p className="text-gray-500 text-xs mt-0.5">Switches activados por día — Verde / Amarillo / Rojo</p>
+                </div>
+                <div className="p-4 overflow-x-auto">
+                  {(() => {
+                    const sorted = [...heatTasks].sort((a, b) => a.fecha.localeCompare(b.fecha));
+                    if (sorted.length === 0) return <p className="text-gray-600 text-xs text-center py-6">No hay tareas todavía.</p>;
+                    const total = heatData.length;
+                    return (
+                      <div className="flex items-end gap-2 min-w-max pb-2">
+                        {sorted.map(t => {
+                          let verde = 0, amarillo = 0, rojo = 0;
+                          heatData.forEach(row => {
+                            const selfRev = row.tareas[t.id]?.self;
+                            if (!selfRev) return;
+                            const inAudits: any[] = row.tareas[t.id]?.incomingAudits || [];
+                            const isVend = row.promotor?.rol === 'vendedor' || row.promotor?.rol === 'vendedor_revisor';
+                            const allSI = inAudits.length > 0 && inAudits.every((a: any) => a.voto === 'SI');
+                            const isSimple = inAudits.length === 0 && (row.tareas[t.id]?.asAuditor || []).length === 0;
+                            const raw = selfRev.submission_status || 'rojo';
+                            const override = selfRev.admin_override;
+                            let computed = raw;
+                            if (raw === 'amarillo' && (isVend || allSI || isSimple)) computed = 'verde';
+                            const s = override || computed;
+                            if (['verde','morado'].includes(s)) verde++;
+                            else if (s === 'amarillo' || s === 'naranja') amarillo++;
+                            else rojo++;
+                          });
+                          const height = 80;
+                          const vH = total > 0 ? Math.round((verde / total) * height) : 0;
+                          const aH = total > 0 ? Math.round((amarillo / total) * height) : 0;
+                          const rH = height - vH - aH;
+                          const pct = total > 0 ? Math.round((verde / total) * 100) : 0;
+                          const dateObj = new Date(t.fecha + 'T12:00:00');
+                          const label = dateObj.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+                          const isToday = t.fecha === TODAY;
+                          return (
+                            <div key={t.id} className="flex flex-col items-center gap-1 cursor-pointer group"
+                              onClick={() => { setSelectedHeatTask(t.id); setHeatMapOpen(true); heatMapRef.current?.scrollIntoView({ behavior: 'smooth' }); }}>
+                              <span className="text-[10px] font-bold text-gray-400 group-hover:text-white transition-colors">{pct}%</span>
+                              <div className="flex flex-col-reverse rounded-lg overflow-hidden w-10 border border-white/8 group-hover:border-white/20 transition-all" style={{ height: `${height}px` }}>
+                                {verde > 0 && <div className="bg-green-500 transition-all" style={{ height: `${vH}px` }} title={`Verde: ${verde}`} />}
+                                {amarillo > 0 && <div className="bg-yellow-400 transition-all" style={{ height: `${aH}px` }} title={`Amarillo: ${amarillo}`} />}
+                                {rojo > 0 && <div className="bg-red-500/60 transition-all" style={{ height: `${rH}px` }} title={`Rojo: ${rojo}`} />}
+                              </div>
+                              <span className={`text-[10px] font-semibold ${isToday ? 'text-blue-400' : 'text-gray-600'}`}>{label}</span>
+                              {isToday && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

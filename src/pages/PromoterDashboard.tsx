@@ -370,6 +370,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           <div className="min-w-0 flex items-center gap-2">
             <span className="font-black text-sm text-white">HSU</span>
+              {isVendedor && <span className="text-[9px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">Vendedor</span>}
             <div className="flex gap-1 ml-2 bg-neutral-950 p-1 rounded-lg border border-white/5 overflow-x-auto scrollbar-hide">
               <button onClick={() => setViewMode('panel')} className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition-colors whitespace-nowrap ${viewMode === 'panel' ? 'bg-white text-neutral-900' : 'text-gray-500 hover:text-white'}`}>Panel</button>
               {(!isSimpleTask) && (
