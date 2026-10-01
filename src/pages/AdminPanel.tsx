@@ -138,6 +138,238 @@ export default function AdminPanel() {
 
   useEffect(() => { loadAll().then(() => { if (isAdmin) ensureTodayTask(); }); }, []);
 
+  const handleImportCsv = () => {
+    if (!csvData.trim()) return;
+    const lines = csvData.trim().split('\n');
+    if (lines.length < 2) return alert('Debes incluir al menos una fila de cabeceras y una de datos.');
+    
+    // Detect separator (comma or tab)
+    const sep = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase());
+    
+    const required = ['nombre', 'correo', 'instagram'];
+    const missing = required.filter(r => !headers.includes(r));
+    if (missing.length > 0) return alert(`Faltan cabeceras obligatorias: ${missing.join(', ')}\nAsegúrate de escribir "nombre, correo, instagram" como cabeceras (o separadas por tabulador si es Excel).`);
+
+    const newUsers: Promotor[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      const values = lines[i].split(sep);
+      const row: any = {};
+      headers.forEach((h, idx) => {
+        row[h] = values[idx]?.trim() || '';
+      });
+      
+      const tempId = `new_csv_${Date.now()}_${i}`;
+      const newUser: any = {
+        id: tempId,
+        nombre: row.nombre,
+        correo: row.correo,
+        instagram: formatIg(row.instagram || ''),
+        clave: row.clave || '1234',
+        rol: (row.rol || 'promotor').toLowerCase() as Rol,
+        rut: formatRut(row.rut || ''),
+        telefono: formatPhone(row.telefono || ''),
+        ticketmaster_url: row.ticketmaster_url || ''
+      };
+      
+      newUsers.push(newUser);
+    }
+    
+    // Añadimos a la tabla local y marcamos como editados para que "Guardar" los inserte
+    setPromotores(prev => [...prev, ...newUsers]);
+    
+    const newEditedRows: any = {};
+    newUsers.forEach(u => {
+      newEditedRows[u.id] = { ...u };
+    });
+    setEditedRows(prev => ({ ...prev, ...newEditedRows }));
+    setCsvData('');
+    alert(`Se prepararon ${newUsers.length} usuarios para insertar. Revisa la tabla y presiona "Guardar" arriba para confirmar los cambios a la base de datos.`);
+  };
+
+  const loadAll = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([loadUsers(), loadTareas(), loadConfig(), loadHeatMap(), loadMetrics()]);
+    } catch (error) {
+      console.error("Error loading admin data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Doble countdown para la tarea seleccionada ──────────────────────────────
+  useEffect(() => {
+    const selTask = tareas.find(t => t.id === selectedHeatTask);
+    if (!selTask) { setHeatCountdown(''); setHeatRevCountdown(''); return; }
+    const created = new Date(selTask.created_at || selTask.fecha_tarea + 'T10:00:00Z');
+    const expiry = new Date(created.getTime() + (selTask.horas_duracion || 24) * 3600000);
+    const revHours = selTask.horas_revision || 0;
+    const revDeadline = revHours > 0 ? new Date(expiry.getTime() - revHours * 3600000) : null;
+
+    const tick = () => {
+      const now = Date.now();
+      const diff = expiry.getTime() - now;
+      if (diff <= 0) { setHeatCountdown('Expirado'); }
+      else {
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        setHeatCountdown(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
+      }
+      if (revDeadline) {
+        const rd = revDeadline.getTime() - now;
+        if (rd <= 0) setHeatRevCountdown('Tiempo de revisión cerrado');
+        else {
+          const h = Math.floor(rd / 3600000);
+          const m = Math.floor((rd % 3600000) / 60000);
+          const s = Math.floor((rd % 60000) / 1000);
+          setHeatRevCountdown(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
+        }
+      } else { setHeatRevCountdown(''); }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [selectedHeatTask, tareas]);
+
+  // ── Guardar nombre y link de tarea ─────────────────────────────────────────
+  const saveTaskTitle = async () => {
+    if (!editingTaskTitle) return;
+    await supabase.from('tareas').update({ 
+      titulo: editingTaskTitle.titulo, 
+      link_publicitario: editingTaskTitle.link_publicitario 
+    }).eq('id', editingTaskTitle.id);
+    
+    setTareas(prev => prev.map(t => t.id === editingTaskTitle.id 
+      ? { ...t, titulo: editingTaskTitle.titulo, link_publicitario: editingTaskTitle.link_publicitario } 
+      : t
+    ));
+    setEditingTaskTitle(null);
+  };
+
+  const loadUsers = async () => {
+    const { data } = await supabase.from('promotores').select('*').order('created_at');
+    setPromotores(data || []);
+  };
+
+  const loadTareas = async () => {
+    const { data } = await supabase.from('tareas').select('*').order('fecha_tarea', { ascending: false });
+    setTareas(data || []);
+  };
+
+  const loadConfig = async () => {
+    const { data } = await supabase.from('config').select('*').eq('id', 1).single();
+    if (data) setConfig(data);
+  };
+
+  const loadHeatMap = async () => {
+    // 1. Obtener promotores Y vendedores (excluir solo admins del mapa)
+    const { data: proms } = await supabase.from('promotores').select('id, nombre, instagram, rol').in('rol', ['promotor', 'vendedor']).order('created_at');
+    if (!proms) return;
+    
+    // 2. Obtener tareas (descendente para que lo más reciente esté primero/izquierda)
+    const { data: tareasData } = await supabase.from('tareas').select('id, fecha_tarea, titulo, horas_duracion, horas_revision, created_at').order('created_at', { ascending: false });
+    if (!tareasData) return;
+    const taskList = tareasData.map(t => ({ id: t.id, fecha: t.fecha_tarea, titulo: t.titulo }));
+    setHeatTasks(taskList);
+    
+    if (!selectedHeatTask && taskList.length > 0) {
+      setSelectedHeatTask(taskList[0].id); // La más reciente
+    }
+
+    // 3. Obtener revisiones
+    const { data: revs } = await supabase
+      .from('revisiones')
+      .select('*, tareas!revisiones_tarea_id_fkey(fecha_tarea), target:promotores!revisiones_promotor_id_fkey(id, nombre, instagram)')
+      .order('created_at');
+
+    const byPromotor: Record<string, any> = {};
+    proms.forEach((p: any) => {
+      byPromotor[p.id] = { promotor: p, tareas: {} };
+    });
+
+    if (revs) {
+      revs.forEach((r: any) => {
+        const tareaId = r.tarea_id;
+        if (!tareaId) return;
+        const pId = r.promotor_id;
+        const aId = r.auditor_id;
+        
+        if (!byPromotor[pId]) return;
+        if (!byPromotor[pId].tareas[tareaId]) byPromotor[pId].tareas[tareaId] = { self: null, asAuditor: [], incomingAudits: [] };
+        if (!byPromotor[aId]) return;
+        if (!byPromotor[aId].tareas[tareaId]) byPromotor[aId].tareas[tareaId] = { self: null, asAuditor: [], incomingAudits: [] };
+
+        if (pId === aId) {
+          byPromotor[pId].tareas[tareaId].self = r;
+        } else {
+          byPromotor[aId].tareas[tareaId].asAuditor.push(r);
+          byPromotor[pId].tareas[tareaId].incomingAudits.push(r);
+        }
+      });
+    }
+    
+    setHeatData(Object.values(byPromotor));
+  };
+
+  const loadMetrics = async () => {
+    const { data } = await supabase
+      .from('metricas')
+      .select('*, promotores!metricas_promotor_id_fkey(nombre, instagram)');
+    setMetrics(data || []);
+  };
+
+  // ── Usuarios: helpers ─────────────────────────────────────────────────────
+  const getFilteredUsers = () => {
+    let list = [...promotores];
+    if (userRolFilter !== 'todos') list = list.filter(p => p.rol === userRolFilter);
+    if (userSearch) {
+      const s = userSearch.toLowerCase();
+      list = list.filter(p =>
+        p.nombre?.toLowerCase().includes(s) ||
+        p.correo?.toLowerCase().includes(s) ||
+        p.instagram?.toLowerCase().includes(s)
+      );
+    }
+    list.sort((a, b) => {
+      const av = (a[userSort.field] || '') as string;
+      const bv = (b[userSort.field] || '') as string;
+      return userSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+    return list;
+  };
+
+  const toggleSort = (field: keyof Promotor) => {
+    setUserSort(prev => ({ field, dir: prev.field === field && prev.dir === 'asc' ? 'desc' : 'asc' }));
+  };
+
+  const SortIcon = ({ field }: { field: keyof Promotor }) => {
+    if (userSort.field !== field) return <ChevronUp size={12} className="text-gray-600" />;
+    return userSort.dir === 'asc' ? <ChevronUp size={12} className="text-blue-400" /> : <ChevronDown size={12} className="text-blue-400" />;
+  };
+
+  const editCell = (id: string, field: keyof Promotor, value: string) => {
+    setEditedRows(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  };
+
+  const addRow = () => {
+    const tempId = `new_${Date.now()}`;
+    setPromotores(prev => [...prev, { id: tempId, nombre: '', rut: '', correo: '', clave: '', instagram: '', rol: 'promotor' }]);
+  };
+
+  const deleteRow = async (id: string) => {
+    if (id.startsWith('new_')) { setPromotores(prev => prev.filter(p => p.id !== id)); return; }
+    const res = prompt('ATENCIÓN: ¿Estás seguro que deseas eliminar este promotor y todo su historial? Escribe ELIMINAR para confirmar.');
+    if (res !== 'ELIMINAR') {
+      if (res !== null) alert('Eliminación cancelada. Debes escribir ELIMINAR.');
+      return;
+    }
+    await supabase.from('promotores').delete().eq('id', id);
+    setPromotores(prev => prev.filter(p => p.id !== id));
+  };
+
   const saveUsers = async () => {
     setSavingUsers(true);
     
