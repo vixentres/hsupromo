@@ -113,7 +113,17 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         .select('submission_status, admin_override, tareas!inner(fecha_tarea, activa)')
         .eq('promotor_id', uid).eq('auditor_id', uid)
         .order('tareas(fecha_tarea)', { ascending: false });
-      setHistory(hist || []);
+      const sortedHist = (hist || []).sort((a: any, b: any) => new Date(a.tareas?.fecha_tarea).getTime() - new Date(b.tareas?.fecha_tarea).getTime());
+      setHistory(sortedHist);
+      if (sortedHist.length > 0) {
+        const pending = sortedHist.find((h: any) => {
+          const st = h.admin_override || h.submission_status || 'rojo';
+          return st === 'rojo';
+        });
+        if (pending && pending.tareas?.fecha_tarea) {
+          setSelectedDate(pending.tareas.fecha_tarea);
+        }
+      }
     }
   };
 

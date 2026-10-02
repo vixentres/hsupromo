@@ -37,6 +37,45 @@ function HeatCell({ revId, currentStatus, onOverride }: {
   const [open, setOpen] = useState(false);
   const c = COLOR_META[currentStatus];
   if (!revId) return <span className="inline-block w-5 h-5 rounded-full bg-neutral-800 border border-white/10" title="Sin datos" />;
+
+  // -- MINI CALENDARIO --
+  const renderCalendar = () => {
+    const hoy = new Date();
+    const start = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const end = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    
+    const days = [];
+    for(let d = 1; d <= end.getDate(); d++) {
+      const dateStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const hasTask = tareas.find(t => t.fecha_tarea === dateStr);
+      days.push({ day: d, dateStr, hasTask });
+    }
+
+    return (
+      <div className="bg-neutral-950 border border-white/5 rounded-xl p-3 mb-4">
+        <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Calendario ({hoy.toLocaleString('es', { month: 'long' })})</h3>
+        <div className="grid grid-cols-7 gap-1">
+          {['L','M','M','J','V','S','D'].map((day, i) => <div key={i} className="text-center text-[10px] text-gray-500 font-bold">{day}</div>)}
+          {Array.from({length: (start.getDay() === 0 ? 6 : start.getDay() - 1)}).map((_, i) => <div key={i}></div>)}
+          {days.map(d => (
+            <button key={d.day}
+              onClick={() => {
+                if (d.hasTask) {
+                   setSelectedHeatTask(d.hasTask.id);
+                   heatMapRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              disabled={!d.hasTask}
+              className={`w-full aspect-square rounded flex items-center justify-center text-[10px] font-bold transition-all ${d.hasTask ? (selectedHeatTask === d.hasTask.id ? 'bg-white text-black ring-2 ring-white' : 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/40 cursor-pointer') : 'text-gray-600 opacity-30 cursor-not-allowed'}`}
+            >
+              {d.day}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="relative inline-block">
       <button onClick={() => setOpen(o => !o)}
@@ -60,6 +99,45 @@ function HeatCell({ revId, currentStatus, onOverride }: {
 
 // ─── Leyenda ─────────────────────────────────────────────────────────────────
 function Leyenda() {
+
+  // -- MINI CALENDARIO --
+  const renderCalendar = () => {
+    const hoy = new Date();
+    const start = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const end = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    
+    const days = [];
+    for(let d = 1; d <= end.getDate(); d++) {
+      const dateStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const hasTask = tareas.find(t => t.fecha_tarea === dateStr);
+      days.push({ day: d, dateStr, hasTask });
+    }
+
+    return (
+      <div className="bg-neutral-950 border border-white/5 rounded-xl p-3 mb-4">
+        <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Calendario ({hoy.toLocaleString('es', { month: 'long' })})</h3>
+        <div className="grid grid-cols-7 gap-1">
+          {['L','M','M','J','V','S','D'].map((day, i) => <div key={i} className="text-center text-[10px] text-gray-500 font-bold">{day}</div>)}
+          {Array.from({length: (start.getDay() === 0 ? 6 : start.getDay() - 1)}).map((_, i) => <div key={i}></div>)}
+          {days.map(d => (
+            <button key={d.day}
+              onClick={() => {
+                if (d.hasTask) {
+                   setSelectedHeatTask(d.hasTask.id);
+                   heatMapRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              disabled={!d.hasTask}
+              className={`w-full aspect-square rounded flex items-center justify-center text-[10px] font-bold transition-all ${d.hasTask ? (selectedHeatTask === d.hasTask.id ? 'bg-white text-black ring-2 ring-white' : 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/40 cursor-pointer') : 'text-gray-600 opacity-30 cursor-not-allowed'}`}
+            >
+              {d.day}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-wrap gap-2 mb-5">
       {COLORS.map(c => (
@@ -120,6 +198,7 @@ export default function AdminPanel() {
   const [heatTasks, setHeatTasks] = useState<{ id: string, fecha: string, titulo: string }[]>([]);
   const heatMapRef = React.useRef<HTMLDivElement>(null);
   const [heatColorFilter, setHeatColorFilter] = useState<EstadoColor | 'todos'>('todos');
+  const [toastMsg, setToastMsg] = useState('');
   const [heatAdminFilter, setHeatAdminFilter] = useState<'todos' | 'revisadas' | 'pendientes'>('todos');
   const [heatRolFilter, setHeatRolFilter] = useState<'todos' | 'promotor' | 'vendedor'>('todos');
   const [heatSort, setHeatSort] = useState<'nombre' | 'estado'>('nombre');
@@ -696,6 +775,45 @@ export default function AdminPanel() {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
+
+  // -- MINI CALENDARIO --
+  const renderCalendar = () => {
+    const hoy = new Date();
+    const start = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const end = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    
+    const days = [];
+    for(let d = 1; d <= end.getDate(); d++) {
+      const dateStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const hasTask = tareas.find(t => t.fecha_tarea === dateStr);
+      days.push({ day: d, dateStr, hasTask });
+    }
+
+    return (
+      <div className="bg-neutral-950 border border-white/5 rounded-xl p-3 mb-4">
+        <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Calendario ({hoy.toLocaleString('es', { month: 'long' })})</h3>
+        <div className="grid grid-cols-7 gap-1">
+          {['L','M','M','J','V','S','D'].map((day, i) => <div key={i} className="text-center text-[10px] text-gray-500 font-bold">{day}</div>)}
+          {Array.from({length: (start.getDay() === 0 ? 6 : start.getDay() - 1)}).map((_, i) => <div key={i}></div>)}
+          {days.map(d => (
+            <button key={d.day}
+              onClick={() => {
+                if (d.hasTask) {
+                   setSelectedHeatTask(d.hasTask.id);
+                   heatMapRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              disabled={!d.hasTask}
+              className={`w-full aspect-square rounded flex items-center justify-center text-[10px] font-bold transition-all ${d.hasTask ? (selectedHeatTask === d.hasTask.id ? 'bg-white text-black ring-2 ring-white' : 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/40 cursor-pointer') : 'text-gray-600 opacity-30 cursor-not-allowed'}`}
+            >
+              {d.day}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-black text-white font-sans pb-20 md:pb-8">
       <div className="max-w-6xl mx-auto px-3 pt-3 md:px-8 md:pt-8 space-y-4">
@@ -906,6 +1024,7 @@ export default function AdminPanel() {
               {user?.rol === 'admin' && (
                 <div className="bg-neutral-900 border border-white/8 rounded-2xl p-6 h-fit">
                   <h2 className="font-black text-base mb-4">Gestor de Tarea</h2>
+                    {renderCalendar()}
                   <div className="flex flex-col gap-3">
                     <div className="flex gap-3 flex-wrap">
                       <input type="text" value={newTask.titulo} onChange={e => setNewTask(t => ({ ...t, titulo: e.target.value }))}
@@ -991,12 +1110,26 @@ export default function AdminPanel() {
                 {heatMapOpen && (
                   <div className="flex flex-wrap gap-2">
                     <div className="flex gap-1 bg-neutral-950 border border-white/10 p-1 rounded-xl">
-                      <button onClick={() => setHeatColorFilter('todos')}
+                      <button onClick={() => {
+                          setHeatColorFilter('todos');
+                          setToastMsg('Mostrando todos');
+                          setTimeout(() => setToastMsg(''), 3500);
+                        }}
                         className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${heatColorFilter === 'todos' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'}`}>
                         Todos
                       </button>
                       {COLORS.map(c => (
-                        <button key={c} onClick={() => setHeatColorFilter(c)}
+                        <button key={c} onClick={() => {
+                          setHeatColorFilter(c);
+                          let msg = '';
+                          if (c === 'verde') msg = 'Completados (Auditados correctamente)';
+                          if (c === 'amarillo') msg = 'Pendientes de revisión';
+                          if (c === 'rojo') msg = 'Sin hacer';
+                          if (c === 'morado') msg = 'Pendiente de revisión pero anticipado (Vendedor)';
+                          if (c === 'naranja') msg = 'Justificado / Vendedor';
+                          setToastMsg(msg);
+                          setTimeout(() => setToastMsg(''), 3500);
+                        }}
                           className={`w-6 h-6 rounded-lg ${COLOR_META[c].bg} transition-all ${heatColorFilter === c ? 'ring-2 ring-white ring-offset-1 ring-offset-neutral-900 scale-110' : 'opacity-60 hover:opacity-100'}`}
                           title={COLOR_META[c].label} />
                       ))}
@@ -1015,7 +1148,6 @@ export default function AdminPanel() {
 
               {heatMapOpen && (
                 <>
-                  <Leyenda />
 
                   {/* DÍA SELECCIONADO (TOP) */}
                   <div className="mb-8">
@@ -1729,6 +1861,12 @@ export default function AdminPanel() {
           })}
         </nav>
       )}
+      {/* Toast Notification */}
+      <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 pointer-events-none ${toastMsg ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className="bg-neutral-800 border border-neutral-600 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 text-sm font-bold">
+          {toastMsg}
+        </div>
+      </div>
     </div>
   );
 }
