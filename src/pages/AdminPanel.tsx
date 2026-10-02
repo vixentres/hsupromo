@@ -510,8 +510,20 @@ export default function AdminPanel() {
 
 
   // ── Mapa calor: override (toggle — mismo color = quita el override) ──────
-  const overrideColor = async (revId: string | null, color: EstadoColor | null) => {
-    if (!revId) return alert('Este usuario no tiene entrada para este día.');
+  const overrideColor = async (revId: string | null, color: EstadoColor | null, promotorId?: string, tareaId?: string) => {
+    if (!revId) {
+      if (!promotorId || !tareaId) return alert('Sin datos para este promotor en este día.');
+      await supabase.from('revisiones').insert({
+        tarea_id: tareaId,
+        promotor_id: promotorId,
+        auditor_id: promotorId,
+        voto: 'SI',
+        submission_status: 'rojo',
+        admin_override: color
+      });
+      loadHeatMap();
+      return;
+    }
     await supabase.from('revisiones').update({ admin_override: color }).eq('id', revId);
     loadHeatMap();
   };
@@ -1229,8 +1241,7 @@ export default function AdminPanel() {
                             {(['verde', 'rojo', 'naranja'] as EstadoColor[]).map(col => (
                               <button key={col}
                                 onClick={() => {
-                                  if (!selfRev?.id) return alert('Sin datos para este promotor en este día.');
-                                  overrideColor(selfRev.id, adminOverride === col ? null : col);
+                                  overrideColor(selfRev?.id || null, adminOverride === col ? null : col, row.promotor.id, selectedHeatTask);
                                 }}
                                 className={`w-6 h-6 rounded-full transition-all ${COLOR_META[col].bg} ${adminOverride === col ? 'ring-2 ring-white ring-offset-1 ring-offset-neutral-950 scale-110' : 'opacity-40 hover:opacity-100'}`}
                                 title={adminOverride === col ? `Quitar revisión (${COLOR_META[col].label})` : `Marcar como ${COLOR_META[col].label}`}
