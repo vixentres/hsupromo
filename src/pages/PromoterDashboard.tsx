@@ -488,7 +488,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                   Descargar Material RRSS
                 </a>
               )}
-              <a href="https://www.instagram.com/hsuevents.cl/" target="_blank" rel="noopener noreferrer" onClick={(e) => handleDelayedLink(e, tarea?.link_publicitario || 'https://www.instagram.com/hsuevents.cl/')} className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-purple-900/20 hover:bg-purple-900/30 border border-purple-500/20 text-purple-300 font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer">
+              <a href="https://www.instagram.com/hsuevents.cl/" target="_blank" rel="noopener noreferrer" onClick={(e) => handleDelayedLink(e, 'https://www.instagram.com/hsuevents.cl/')} className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-purple-900/20 hover:bg-purple-900/30 border border-purple-500/20 text-purple-300 font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer">
                 <Megaphone size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
                 Ver Publicación Oficial
               </a>
