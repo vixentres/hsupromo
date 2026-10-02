@@ -319,12 +319,8 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     } catch (_) {}
   };
 
-  const handleDelayedLink = async (e: React.MouseEvent<HTMLAnchorElement>, targetUrl: string) => {
-    e.preventDefault();
-    await copyLink();
-    setTimeout(() => {
-      window.open(targetUrl, '_blank');
-    }, 2000);
+  const handleDelayedLink = (..._args: any[]) => {
+    copyLink();
   };
 
   const style = STATUS_STYLE[myStatus];
