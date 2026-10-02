@@ -779,21 +779,31 @@ export default function AdminPanel() {
   // ─────────────────────────────────────────────────────────────────────────
 
   // -- MINI CALENDARIO --
+  const [calendarDate, setCalendarDate] = useState(new Date());
+
   const renderCalendar = () => {
-    const hoy = new Date();
-    const start = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const end = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    const start = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
+    const end = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0);
     
     const days = [];
     for(let d = 1; d <= end.getDate(); d++) {
-      const dateStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const dateStr = `${calendarDate.getFullYear()}-${String(calendarDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const hasTask = tareas.find(t => t.fecha_tarea === dateStr);
       days.push({ day: d, dateStr, hasTask });
     }
 
+    const prevMonth = () => setCalendarDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+    const nextMonth = () => setCalendarDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+
     return (
       <div className="bg-neutral-950 border border-white/5 rounded-xl p-3 mb-4">
-        <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Calendario ({hoy.toLocaleString('es', { month: 'long' })})</h3>
+        <div className="flex items-center justify-between mb-3 px-2">
+          <button onClick={prevMonth} className="text-gray-500 hover:text-white transition-colors p-1 px-3 bg-white/5 hover:bg-white/10 rounded-lg">&lt;</button>
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+            {calendarDate.toLocaleString('es', { month: 'long', year: 'numeric' })}
+          </h3>
+          <button onClick={nextMonth} className="text-gray-500 hover:text-white transition-colors p-1 px-3 bg-white/5 hover:bg-white/10 rounded-lg">&gt;</button>
+        </div>
         <div className="grid grid-cols-7 gap-1">
           {['L','M','M','J','V','S','D'].map((day, i) => <div key={i} className="text-center text-[10px] text-gray-500 font-bold">{day}</div>)}
           {Array.from({length: (start.getDay() === 0 ? 6 : start.getDay() - 1)}).map((_, i) => <div key={i}></div>)}
