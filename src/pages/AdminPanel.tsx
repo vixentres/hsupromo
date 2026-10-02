@@ -458,6 +458,16 @@ export default function AdminPanel() {
       
       if (existingRowsToUpdate.length > 0) {
         const { error } = await supabase.from('promotores').upsert(existingRowsToUpdate, { onConflict: 'id' });
+        if (!error) {
+          try {
+            await fetch('https://script.google.com/macros/s/AKfycbwhw7nuz9H1u6LL6jwLN9rlFvAQgzp6iWyBYAdrQUdQ5tlMkoa1WNpx7wgKGQ_1xCUUEg/exec', {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify({ action: 'update', data: existingRowsToUpdate })
+            });
+          } catch(e) {}
+        }
         if (error) throw error;
       }
       
