@@ -315,10 +315,16 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (_) {
-      // Clipboard puede fallar en algunos contextos — ignoramos el error pero igual abrimos el link
-    }
+      setTimeout(() => setCopied(false), 2500);
+    } catch (_) {}
+  };
+
+  const handleDelayedLink = async (e: React.MouseEvent<HTMLAnchorElement>, targetUrl: string) => {
+    e.preventDefault();
+    await copyLink();
+    setTimeout(() => {
+      window.open(targetUrl, '_blank');
+    }, 2000);
   };
 
   const style = STATUS_STYLE[myStatus];
@@ -477,12 +483,12 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
             </div>
             <div className="space-y-3 mt-5 mb-6">
               {materialUrl && (
-                <a href={materialUrl} target="_blank" rel="noopener noreferrer" onClick={() => { try { copyLink(); } catch(_) {} }} className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer">
+                <a href={materialUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => handleDelayedLink(e, materialUrl)} className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer">
                   <Folder size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
                   Descargar Material RRSS
                 </a>
               )}
-              <a href="https://www.instagram.com/hsuevents.cl/" target="_blank" rel="noopener noreferrer" onClick={() => { try { copyLink(); } catch(_) {} }} className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-purple-900/20 hover:bg-purple-900/30 border border-purple-500/20 text-purple-300 font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer">
+              <a href="https://www.instagram.com/hsuevents.cl/" target="_blank" rel="noopener noreferrer" onClick={(e) => handleDelayedLink(e, tarea?.link_publicitario || 'https://www.instagram.com/hsuevents.cl/')} className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-purple-900/20 hover:bg-purple-900/30 border border-purple-500/20 text-purple-300 font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer">
                 <Megaphone size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
                 Ver Publicación Oficial
               </a>
@@ -603,7 +609,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                     href={materialUrl || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => { try { copyLink(); } catch(_) {} }}
+                    onClick={(e) => handleDelayedLink(e, tarea?.material_nuevo || '')}
                     className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer"
                   >
                     <Folder size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
@@ -615,7 +621,7 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                     href={tarea.link_publicitario || 'https://www.instagram.com/hsuevents.cl/'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => { try { copyLink(); } catch(_) {} }}
+                    onClick={(e) => handleDelayedLink(e, materialUrl)}
                     className="relative overflow-hidden flex items-center justify-center gap-2 w-full bg-purple-900/20 hover:bg-purple-900/30 border border-purple-500/20 text-purple-300 font-bold py-3.5 rounded-xl text-sm transition-all group cursor-pointer"
                   >
                     <Megaphone size={16} className="group-hover:scale-110 transition-transform flex-shrink-0" />
@@ -795,6 +801,12 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
           </>
         )}
       </main>
+      {/* Toast Notification */}
+      <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 pointer-events-none ${copied ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className="bg-neutral-800 border border-neutral-600 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 text-sm font-bold">
+          Tu link de Ticketmaster ha sido copiado 🎟️
+        </div>
+      </div>
       )}
     </div>
   );
