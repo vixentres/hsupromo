@@ -101,6 +101,9 @@ export default function AdminPanel() {
   const [userSort, setUserSort] = useState<{ field: keyof Promotor; dir: 'asc' | 'desc' }>({ field: 'nombre', dir: 'asc' });
   const [copied, setCopied] = useState<string | null>(null);
   const [showExtraCols, setShowExtraCols] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [syncingSheets, setSyncingSheets] = useState(false);
+  const [newMember, setNewMember] = useState({ correo: '', nombre: '', instagram: '', telefono: '', rut: '', team: 'Promotor', link_tm: '' });
 
   // ── Tareas ────────────────────────────────────────────────────────────────
   const [tareas, setTareas] = useState<Tarea[]>([]);
@@ -357,6 +360,53 @@ export default function AdminPanel() {
 
   const editCell = (id: string, field: keyof Promotor, value: string) => {
     setEditedRows(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  };
+
+  
+  const handleSyncSheets = async () => {
+    if (!confirm('¿Deseas sincronizar la base de datos con Google Sheets ahora mismo?')) return;
+    setSyncingSheets(true);
+    try {
+      await fetch('https://script.google.com/macros/s/AKfycbye8H9ENKJfQvuiCoswjurUri065iwcCizieDhJ9wsOLl67Z7P_snsgfe2M005aLcSdfA/exec', {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'sync' })
+      });
+      setTimeout(() => {
+        loadUsers();
+        setSyncingSheets(false);
+        setToastMsg('Sincronización completada');
+        setTimeout(() => setToastMsg(''), 3000);
+      }, 3000);
+    } catch (e) {
+      setSyncingSheets(false);
+      alert('Error de red al sincronizar.');
+    }
+  };
+
+  const handleAddMemberSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSyncingSheets(true);
+    try {
+      await fetch('https://script.google.com/macros/s/AKfycbye8H9ENKJfQvuiCoswjurUri065iwcCizieDhJ9wsOLl67Z7P_snsgfe2M005aLcSdfA/exec', {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'add', data: newMember })
+      });
+      setTimeout(() => {
+        loadUsers();
+        setSyncingSheets(false);
+        setShowAddModal(false);
+        setNewMember({ correo: '', nombre: '', instagram: '', telefono: '', rut: '', team: 'Promotor', link_tm: '' });
+        setToastMsg('Integrante añadido y sincronizado');
+        setTimeout(() => setToastMsg(''), 3000);
+      }, 3000);
+    } catch (e) {
+      setSyncingSheets(false);
+      alert('Error de red.');
+    }
   };
 
   const addRow = () => {
@@ -811,9 +861,12 @@ export default function AdminPanel() {
                 <button onClick={() => setShowExtraCols(!showExtraCols)} className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-gray-400 hover:text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all" title={showExtraCols ? "Ocultar Teléfono y RUT" : "Mostrar Teléfono y RUT"}>
                   <Eye size={14} className={showExtraCols ? "text-blue-400" : ""} /> <span className="hidden sm:inline">{showExtraCols ? 'Ocultar extras' : 'Mostrar extras'}</span>
                 </button>
-                <button onClick={addRow} className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
-                  <Plus size={14} /> <span className="hidden sm:inline">Añadir</span>
-                </button>
+                <button onClick={handleSyncSheets} disabled={syncingSheets} className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-blue-400 font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
+  <RefreshCw size={14} className={syncingSheets ? 'animate-spin' : ''} /> <span className="hidden sm:inline">{syncingSheets ? 'Sincronizando...' : 'Sync Sheets'}</span>
+</button>
+<button onClick={() => setShowAddModal(true)} className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
+  <Plus size={14} /> <span className="hidden sm:inline">Añadir</span>
+</button>
                 <button onClick={saveUsers} disabled={savingUsers || Object.keys(editedRows).length === 0}
                   className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
                   <Save size={14} /> {savingUsers ? 'Guardando...' : `Guardar${Object.keys(editedRows).length > 0 ? ` (${Object.keys(editedRows).length})` : ''}`}
@@ -934,9 +987,12 @@ export default function AdminPanel() {
               </table>
             </div>
             <div className="px-4 py-3 border-t border-white/8">
-              <button onClick={addRow} className="flex items-center gap-2 text-gray-500 hover:text-white text-xs font-bold transition-colors hover:bg-white/5 px-3 py-2 rounded-lg">
-                <Plus size={14} /> Añadir integrante
-              </button>
+              <button onClick={handleSyncSheets} disabled={syncingSheets} className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-blue-400 font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
+  <RefreshCw size={14} className={syncingSheets ? 'animate-spin' : ''} /> <span className="hidden sm:inline">{syncingSheets ? 'Sincronizando...' : 'Sync Sheets'}</span>
+</button>
+<button onClick={() => setShowAddModal(true)} className="bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
+  <Plus size={14} /> <span className="hidden sm:inline">Añadir</span>
+</button>
             </div>
           </div>
         )}
@@ -1787,6 +1843,50 @@ export default function AdminPanel() {
           })}
         </nav>
       )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold text-white mb-4">Añadir Integrante</h3>
+            <p className="text-gray-400 text-sm mb-6">Esto lo agregará a Google Sheets y sincronizará automáticamente la base de datos.</p>
+            <form onSubmit={handleAddMemberSubmit} className="space-y-4">
+              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Correo</label>
+                <input required type="email" value={newMember.correo} onChange={e => setNewMember({...newMember, correo: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
+              </div>
+              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Nombre y Apellido</label>
+                <input required type="text" value={newMember.nombre} onChange={e => setNewMember({...newMember, nombre: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
+              </div>
+              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Instagram (sin @)</label>
+                <input required type="text" value={newMember.instagram} onChange={e => setNewMember({...newMember, instagram: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
+              </div>
+              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Teléfono (ej: 56912345678)</label>
+                <input required type="text" value={newMember.telefono} onChange={e => setNewMember({...newMember, telefono: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
+              </div>
+              <div><label className="text-xs text-gray-500 font-bold mb-1 block">RUT</label>
+                <input required type="text" value={newMember.rut} onChange={e => setNewMember({...newMember, rut: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
+              </div>
+              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Team / Rol</label>
+                <select value={newMember.team} onChange={e => setNewMember({...newMember, team: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none">
+                  <option value="Promotor">Promotor</option>
+                  <option value="Vendedor">Vendedor</option>
+                  <option value="Vendedor_Revisor">Vendedor+Revisor</option>
+                </select>
+              </div>
+              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Link Ticketmaster</label>
+                <input required type="url" value={newMember.link_tm} onChange={e => setNewMember({...newMember, link_tm: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-2.5 rounded-xl transition-all">Cancelar</button>
+                <button type="submit" disabled={syncingSheets} className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 border border-blue-500/20 text-white font-bold py-2.5 rounded-xl transition-all flex justify-center items-center gap-2">
+                  {syncingSheets ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                  {syncingSheets ? 'Sincronizando...' : 'Guardar en Sheets'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 pointer-events-none ${toastMsg ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="bg-neutral-800 border border-neutral-600 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 text-sm font-bold">
