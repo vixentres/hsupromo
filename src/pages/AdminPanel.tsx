@@ -367,7 +367,7 @@ export default function AdminPanel() {
     if (!confirm('¿Deseas sincronizar la base de datos con Google Sheets ahora mismo?')) return;
     setSyncingSheets(true);
     try {
-      await fetch('https://script.google.com/macros/s/AKfycbwbJsmKGWbyDvVD1qRYQraRhZ0S_tr7BPefT49TAiImkkhK-ewb2rS7pIkbmZ3boJX7oQ/exec', {
+      await fetch('https://script.google.com/macros/s/AKfycbwJ5FyujTc8-GlgNsGqDkv64Z0uSKSNnZtQ607PTQUxZ6CG4-p2QaMFdmRz-m60gvAWYA/exec', {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
@@ -389,7 +389,7 @@ export default function AdminPanel() {
     e.preventDefault();
     setSyncingSheets(true);
     try {
-      await fetch('https://script.google.com/macros/s/AKfycbwbJsmKGWbyDvVD1qRYQraRhZ0S_tr7BPefT49TAiImkkhK-ewb2rS7pIkbmZ3boJX7oQ/exec', {
+      await fetch('https://script.google.com/macros/s/AKfycbwJ5FyujTc8-GlgNsGqDkv64Z0uSKSNnZtQ607PTQUxZ6CG4-p2QaMFdmRz-m60gvAWYA/exec', {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
@@ -429,7 +429,7 @@ export default function AdminPanel() {
 
     if (targetUser && targetUser.correo) {
       try {
-        await fetch('https://script.google.com/macros/s/AKfycbwbJsmKGWbyDvVD1qRYQraRhZ0S_tr7BPefT49TAiImkkhK-ewb2rS7pIkbmZ3boJX7oQ/exec', {
+        await fetch('https://script.google.com/macros/s/AKfycbwJ5FyujTc8-GlgNsGqDkv64Z0uSKSNnZtQ607PTQUxZ6CG4-p2QaMFdmRz-m60gvAWYA/exec', {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain' },
@@ -476,7 +476,7 @@ export default function AdminPanel() {
         const { error } = await supabase.from('promotores').upsert(existingRowsToUpdate, { onConflict: 'id' });
         if (!error) {
           try {
-            await fetch('https://script.google.com/macros/s/AKfycbwbJsmKGWbyDvVD1qRYQraRhZ0S_tr7BPefT49TAiImkkhK-ewb2rS7pIkbmZ3boJX7oQ/exec', {
+            await fetch('https://script.google.com/macros/s/AKfycbwJ5FyujTc8-GlgNsGqDkv64Z0uSKSNnZtQ607PTQUxZ6CG4-p2QaMFdmRz-m60gvAWYA/exec', {
               method: 'POST',
               mode: 'no-cors',
               headers: { 'Content-Type': 'text/plain' },
