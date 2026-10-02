@@ -1845,44 +1845,42 @@ export default function AdminPanel() {
       )}
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold text-white mb-4">Añadir Integrante</h3>
-            <p className="text-gray-400 text-sm mb-6">Esto lo agregará a Google Sheets y sincronizará automáticamente la base de datos.</p>
-            <form onSubmit={handleAddMemberSubmit} className="space-y-4">
-              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Correo</label>
-                <input required type="email" value={newMember.correo} onChange={e => setNewMember({...newMember, correo: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-2xl h-[90vh] flex flex-col overflow-hidden relative">
+            <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-neutral-950/50">
+              <div>
+                <h3 className="text-lg font-bold text-white">Añadir Integrante</h3>
+                <p className="text-xs text-gray-400">Rellena el formulario oficial de HSU Promo</p>
               </div>
-              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Nombre y Apellido</label>
-                <input required type="text" value={newMember.nombre} onChange={e => setNewMember({...newMember, nombre: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
-              </div>
-              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Instagram (sin @)</label>
-                <input required type="text" value={newMember.instagram} onChange={e => setNewMember({...newMember, instagram: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
-              </div>
-              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Teléfono (ej: 56912345678)</label>
-                <input required type="text" value={newMember.telefono} onChange={e => setNewMember({...newMember, telefono: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
-              </div>
-              <div><label className="text-xs text-gray-500 font-bold mb-1 block">RUT</label>
-                <input required type="text" value={newMember.rut} onChange={e => setNewMember({...newMember, rut: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
-              </div>
-              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Team / Rol</label>
-                <select value={newMember.team} onChange={e => setNewMember({...newMember, team: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none">
-                  <option value="Promotor">Promotor</option>
-                  <option value="Vendedor">Vendedor</option>
-                  <option value="Vendedor_Revisor">Vendedor+Revisor</option>
-                </select>
-              </div>
-              <div><label className="text-xs text-gray-500 font-bold mb-1 block">Link Ticketmaster</label>
-                <input type="url" value={newMember.link_tm} onChange={e => setNewMember({...newMember, link_tm: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-2.5 rounded-xl transition-all">Cancelar</button>
-                <button type="submit" disabled={syncingSheets} className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 border border-blue-500/20 text-white font-bold py-2.5 rounded-xl transition-all flex justify-center items-center gap-2">
-                  {syncingSheets ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
-                  {syncingSheets ? 'Sincronizando...' : 'Guardar en Sheets'}
-                </button>
-              </div>
-            </form>
+              <button onClick={() => setShowAddModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors">
+                X
+              </button>
+            </div>
+            
+            <div className="flex-1 bg-white relative">
+              <iframe 
+                src="https://docs.google.com/forms/d/1rGTsE-_D--nrhseUR_SjVp4xvtWntt93cfclspS94Wo/viewform?embedded=true" 
+                width="100%" 
+                height="100%" 
+                frameBorder="0" 
+                marginHeight={0} 
+                marginWidth={0}
+                className="absolute inset-0"
+              >
+                Cargando...
+              </iframe>
+            </div>
+
+            <div className="px-6 py-4 border-t border-white/10 bg-neutral-950/50 flex gap-3 justify-end items-center">
+              <span className="text-xs text-gray-400 mr-auto">¿Ya enviaste el formulario? Dale a sincronizar para verlo en la lista.</span>
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 rounded-xl text-sm font-bold text-gray-400 hover:text-white transition-colors">
+                Cerrar
+              </button>
+              <button onClick={() => { setShowAddModal(false); handleSyncSheets(); }} disabled={syncingSheets} className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2 px-4 rounded-xl flex items-center gap-2 text-sm transition-all">
+                {syncingSheets ? <RefreshCw size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                {syncingSheets ? 'Sincronizando...' : 'Sincronizar ahora'}
+              </button>
+            </div>
           </div>
         </div>
       )}
