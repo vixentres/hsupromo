@@ -1873,7 +1873,7 @@ export default function AdminPanel() {
                 </select>
               </div>
               <div><label className="text-xs text-gray-500 font-bold mb-1 block">Link Ticketmaster</label>
-                <input required type="url" value={newMember.link_tm} onChange={e => setNewMember({...newMember, link_tm: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
+                <input type="url" value={newMember.link_tm} onChange={e => setNewMember({...newMember, link_tm: e.target.value})} className="w-full bg-neutral-950 border border-white/10 rounded-lg p-2 text-white text-sm outline-none" />
               </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-2.5 rounded-xl transition-all">Cancelar</button>
