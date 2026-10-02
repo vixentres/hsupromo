@@ -421,8 +421,24 @@ export default function AdminPanel() {
       if (res !== null) alert('Eliminación cancelada. Debes escribir ELIMINAR.');
       return;
     }
+    
+    const targetUser = promotores.find(p => p.id === id);
+    
     await supabase.from('promotores').delete().eq('id', id);
     setPromotores(prev => prev.filter(p => p.id !== id));
+
+    if (targetUser && targetUser.correo) {
+      try {
+        await fetch('https://script.google.com/macros/s/AKfycbwbJsmKGWbyDvVD1qRYQraRhZ0S_tr7BPefT49TAiImkkhK-ewb2rS7pIkbmZ3boJX7oQ/exec', {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'delete', correo: targetUser.correo })
+        });
+      } catch (e) {
+        console.error('Error syncing delete to sheets', e);
+      }
+    }
   };
 
   const saveUsers = async () => {
