@@ -113,15 +113,15 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
         .select('submission_status, admin_override, tareas!inner(fecha_tarea, activa)')
         .eq('promotor_id', uid).eq('auditor_id', uid)
         .order('tareas(fecha_tarea)', { ascending: false });
-      const sortedHist = (hist || []).sort((a: any, b: any) => new Date(a.tareas?.fecha_tarea).getTime() - new Date(b.tareas?.fecha_tarea).getTime());
+      const sortedHist = (hist || []).sort((a: any, b: any) => new Date((Array.isArray(a.tareas) ? a.tareas[0] : a.tareas)?.fecha_tarea).getTime() - new Date((Array.isArray(b.tareas) ? b.tareas[0] : b.tareas)?.fecha_tarea).getTime());
       setHistory(sortedHist);
       if (sortedHist.length > 0) {
         const pending = sortedHist.find((h: any) => {
           const st = h.admin_override || h.submission_status || 'rojo';
           return st === 'rojo';
         });
-        if (pending && pending.tareas?.fecha_tarea) {
-          setSelectedDate(pending.tareas.fecha_tarea);
+        if (pending && (Array.isArray(pending.tareas) ? pending.tareas[0] : pending.tareas)?.fecha_tarea) {
+          setSelectedDate((Array.isArray(pending.tareas) ? pending.tareas[0] : pending.tareas).fecha_tarea);
         }
       }
     }
@@ -513,10 +513,10 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                       if (st === 'verde') colorClass = 'bg-green-500';
                       if (st === 'morado') colorClass = 'bg-teal-500';
                       if (st === 'naranja') colorClass = 'bg-orange-400';
-                      const dateObj = h.tareas?.fecha_tarea ? new Date(h.tareas.fecha_tarea + 'T12:00:00') : new Date();
+                      const dateObj = (Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea ? new Date((Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea + 'T12:00:00') : new Date();
                       const dateLabel = dateObj.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
                       return (
-                        <button key={i} onClick={() => h.tareas?.fecha_tarea && setSelectedDate(h.tareas.fecha_tarea)} className="flex flex-col items-center gap-2 group outline-none">
+                        <button key={i} onClick={() => (Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea && setSelectedDate((Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea)} className="flex flex-col items-center gap-2 group outline-none">
                           <div title={`Día: ${dateLabel} | Estado: ${st}`} className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${colorClass} opacity-60 group-hover:opacity-100`}>
                             {st === 'verde' && <ShieldCheck size={16} className="text-green-900" />}
                             {st === 'morado' && <ShieldCheck size={16} className="text-teal-900" />}
@@ -784,19 +784,19 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
                       if (st === 'morado') colorClass = 'bg-teal-500';
                       if (st === 'naranja') colorClass = 'bg-orange-400';
 
-                      const dateObj = h.tareas?.fecha_tarea ? new Date(h.tareas.fecha_tarea + 'T12:00:00') : new Date();
+                      const dateObj = (Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea ? new Date((Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea + 'T12:00:00') : new Date();
                       const dateLabel = dateObj.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
 
                       return (
-                        <button key={i} onClick={() => h.tareas?.fecha_tarea && setSelectedDate(h.tareas.fecha_tarea)} className="flex flex-col items-center gap-2 group outline-none">
+                        <button key={i} onClick={() => (Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea && setSelectedDate((Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea)} className="flex flex-col items-center gap-2 group outline-none">
                           <div title={`Día: ${dateLabel} | Estado: ${st}`}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${colorClass} ${h.tareas?.fecha_tarea === selectedDate ? 'ring-4 ring-white ring-offset-2 ring-offset-neutral-900 scale-110' : 'opacity-60 group-hover:opacity-100'}`}>
+                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${colorClass} ${(Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea === selectedDate ? 'ring-4 ring-white ring-offset-2 ring-offset-neutral-900 scale-110' : 'opacity-60 group-hover:opacity-100'}`}>
                             {st === 'verde' && <ShieldCheck size={16} className="text-green-900" />}
                             {st === 'morado' && <ShieldCheck size={16} className="text-teal-900" />}
                             {st === 'rojo' && <span className="text-[10px] font-black text-red-900">X</span>}
                             {st === 'amarillo' && <span className="text-[10px] font-black text-yellow-900">...</span>}
                           </div>
-                          <span className={`text-[10px] font-semibold ${h.tareas?.fecha_tarea === selectedDate ? 'text-white' : 'text-gray-500'}`}>{dateLabel}</span>
+                          <span className={`text-[10px] font-semibold ${(Array.isArray(h.tareas) ? h.tareas[0] : h.tareas)?.fecha_tarea === selectedDate ? 'text-white' : 'text-gray-500'}`}>{dateLabel}</span>
                         </button>
                       );
                     })}

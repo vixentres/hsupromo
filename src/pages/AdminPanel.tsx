@@ -38,43 +38,6 @@ function HeatCell({ revId, currentStatus, onOverride }: {
   const c = COLOR_META[currentStatus];
   if (!revId) return <span className="inline-block w-5 h-5 rounded-full bg-neutral-800 border border-white/10" title="Sin datos" />;
 
-  // -- MINI CALENDARIO --
-  const renderCalendar = () => {
-    const hoy = new Date();
-    const start = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const end = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
-    
-    const days = [];
-    for(let d = 1; d <= end.getDate(); d++) {
-      const dateStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const hasTask = tareas.find(t => t.fecha_tarea === dateStr);
-      days.push({ day: d, dateStr, hasTask });
-    }
-
-    return (
-      <div className="bg-neutral-950 border border-white/5 rounded-xl p-3 mb-4">
-        <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Calendario ({hoy.toLocaleString('es', { month: 'long' })})</h3>
-        <div className="grid grid-cols-7 gap-1">
-          {['L','M','M','J','V','S','D'].map((day, i) => <div key={i} className="text-center text-[10px] text-gray-500 font-bold">{day}</div>)}
-          {Array.from({length: (start.getDay() === 0 ? 6 : start.getDay() - 1)}).map((_, i) => <div key={i}></div>)}
-          {days.map(d => (
-            <button key={d.day}
-              onClick={() => {
-                if (d.hasTask) {
-                   setSelectedHeatTask(d.hasTask.id);
-                   heatMapRef.current?.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
-              disabled={!d.hasTask}
-              className={`w-full aspect-square rounded flex items-center justify-center text-[10px] font-bold transition-all ${d.hasTask ? (selectedHeatTask === d.hasTask.id ? 'bg-white text-black ring-2 ring-white' : 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/40 cursor-pointer') : 'text-gray-600 opacity-30 cursor-not-allowed'}`}
-            >
-              {d.day}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="relative inline-block">
@@ -100,43 +63,6 @@ function HeatCell({ revId, currentStatus, onOverride }: {
 // ─── Leyenda ─────────────────────────────────────────────────────────────────
 function Leyenda() {
 
-  // -- MINI CALENDARIO --
-  const renderCalendar = () => {
-    const hoy = new Date();
-    const start = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const end = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
-    
-    const days = [];
-    for(let d = 1; d <= end.getDate(); d++) {
-      const dateStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const hasTask = tareas.find(t => t.fecha_tarea === dateStr);
-      days.push({ day: d, dateStr, hasTask });
-    }
-
-    return (
-      <div className="bg-neutral-950 border border-white/5 rounded-xl p-3 mb-4">
-        <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Calendario ({hoy.toLocaleString('es', { month: 'long' })})</h3>
-        <div className="grid grid-cols-7 gap-1">
-          {['L','M','M','J','V','S','D'].map((day, i) => <div key={i} className="text-center text-[10px] text-gray-500 font-bold">{day}</div>)}
-          {Array.from({length: (start.getDay() === 0 ? 6 : start.getDay() - 1)}).map((_, i) => <div key={i}></div>)}
-          {days.map(d => (
-            <button key={d.day}
-              onClick={() => {
-                if (d.hasTask) {
-                   setSelectedHeatTask(d.hasTask.id);
-                   heatMapRef.current?.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
-              disabled={!d.hasTask}
-              className={`w-full aspect-square rounded flex items-center justify-center text-[10px] font-bold transition-all ${d.hasTask ? (selectedHeatTask === d.hasTask.id ? 'bg-white text-black ring-2 ring-white' : 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/40 cursor-pointer') : 'text-gray-600 opacity-30 cursor-not-allowed'}`}
-            >
-              {d.day}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="flex flex-wrap gap-2 mb-5">
