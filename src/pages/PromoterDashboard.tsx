@@ -801,13 +801,13 @@ export default function PromoterDashboard({ impersonatedUser, onExitImpersonatio
           </>
         )}
       </main>
+      )}
       {/* Toast Notification */}
       <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 pointer-events-none ${copied ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="bg-neutral-800 border border-neutral-600 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 text-sm font-bold">
           Tu link de Ticketmaster ha sido copiado 🎟️
         </div>
       </div>
-      )}
     </div>
   );
 }
