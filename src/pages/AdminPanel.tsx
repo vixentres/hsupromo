@@ -367,7 +367,7 @@ export default function AdminPanel() {
     if (!confirm('¿Deseas sincronizar la base de datos con Google Sheets ahora mismo?')) return;
     setSyncingSheets(true);
     try {
-      await fetch('https://script.google.com/macros/s/AKfycbye8H9ENKJfQvuiCoswjurUri065iwcCizieDhJ9wsOLl67Z7P_snsgfe2M005aLcSdfA/exec', {
+      await fetch('https://script.google.com/macros/s/AKfycbwhw7nuz9H1u6LL6jwLN9rlFvAQgzp6iWyBYAdrQUdQ5tlMkoa1WNpx7wgKGQ_1xCUUEg/exec', {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
@@ -389,7 +389,7 @@ export default function AdminPanel() {
     e.preventDefault();
     setSyncingSheets(true);
     try {
-      await fetch('https://script.google.com/macros/s/AKfycbye8H9ENKJfQvuiCoswjurUri065iwcCizieDhJ9wsOLl67Z7P_snsgfe2M005aLcSdfA/exec', {
+      await fetch('https://script.google.com/macros/s/AKfycbwhw7nuz9H1u6LL6jwLN9rlFvAQgzp6iWyBYAdrQUdQ5tlMkoa1WNpx7wgKGQ_1xCUUEg/exec', {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
