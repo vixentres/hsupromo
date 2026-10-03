@@ -142,6 +142,7 @@ export default function AdminPanel() {
   const [metrics, setMetrics] = useState<any[]>([]);
   const [statsFilter, setStatsFilter] = useState<'visita' | 'click_tm' | 'click_gratis'>('visita');
   const [loading, setLoading] = useState(true);
+  const [calendarDate, setCalendarDate] = useState(new Date());
   const [csvData, setCsvData] = useState('');
 
   useEffect(() => { loadAll().then(() => { if (isAdmin) ensureTodayTask(); }); }, []);
@@ -779,8 +780,6 @@ export default function AdminPanel() {
   // ─────────────────────────────────────────────────────────────────────────
 
   // -- MINI CALENDARIO --
-  const [calendarDate, setCalendarDate] = useState(new Date());
-
   const renderCalendar = () => {
     const start = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
     const end = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0);
